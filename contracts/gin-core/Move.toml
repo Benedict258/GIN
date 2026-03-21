@@ -1,0 +1,6 @@
+[package]
+name = "gin_core"
+edition = "2024.beta"
+
+[addresses]
+gin = "0x0"

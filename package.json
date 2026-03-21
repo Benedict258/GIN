@@ -1,0 +1,19 @@
+{
+  "name": "gin",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace @gin/web",
+    "dev:api": "npm run dev --workspace @gin/api",
+    "build:contracts": "sui move build --path contracts/gin-core",
+    "build": "npm run build --workspace @gin/shared && npm run build --workspace @gin/api && npm run build --workspace @gin/web",
+    "typecheck": "npm run typecheck --workspace @gin/shared && npm run typecheck --workspace @gin/api && npm run typecheck --workspace @gin/web"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

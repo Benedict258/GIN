@@ -49,10 +49,12 @@ Deliverables:
 - confirmed MVP shape
 - confirmed access economy
 - confirmed reward logic direction
+- confirmed EVE Frontier dApp Kit usage
+- confirmed first Move package direction
 
 Status:
 
-- in progress
+- completed
 
 ## Phase 1: Project Bootstrap
 
@@ -69,12 +71,15 @@ Build:
 - shared TypeScript types/contracts
 - env structure
 - package/workspace layout
+- EVE Frontier dApp Kit frontend integration point
+- first Move smart-contract package scaffold
 
 Done when:
 
 - repo has runnable frontend and backend apps
 - local development commands work
 - environment variables are documented
+- first on-chain package builds successfully
 
 ## Phase 2: Data and Identity Layer
 
@@ -92,6 +97,7 @@ Build:
 - contributor profile model
 - wallet-linking flow placeholder or implementation path
 - credits and reputation tables
+- EVE Vault and dApp Kit identity integration refinement
 
 Done when:
 
@@ -330,18 +336,19 @@ To begin implementation without unnecessary delay, I will need:
 
 The next concrete implementation tasks should be:
 
-1. create app folder structure
-2. initialize frontend and backend
-3. define database schema
-4. define report, contributor, credit, and intelligence models
-5. wire the first report submission flow
+1. connect API reads and writes to Supabase
+2. replace demo API responses with database-backed ones
+3. wire the first report submission flow end to end
+4. add verification and confidence scoring
+5. connect the dApp Kit wallet flow to real profile creation and access logic
 
 ## 8. Current Recommendation
 
 We should start with:
 
-- repo scaffolding
-- Supabase-backed schema design
+- Supabase-backed API integration
 - the report -> verification -> intelligence loop
+- dApp Kit wallet-linked identity and access
+- smart-contract expansion for artifact publishing and credits
 
 That gives us the fastest path to a working GIN core.
