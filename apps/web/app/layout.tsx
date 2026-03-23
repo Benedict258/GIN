@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ProvidersSlot } from "../components/providers-slot";
 
 export const metadata: Metadata = {
   title: "GIN",
@@ -13,7 +14,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <ProvidersSlot>{children}</ProvidersSlot>
+      </body>
     </html>
   );
 }

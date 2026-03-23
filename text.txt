@@ -1,0 +1,15 @@
+Phase 4 – Trust & Verification: implement dedupe, scoring, verification states, contributor weighting.
+Phase 5 – Intelligence Engine: derive sector/route summaries, threat/opportunity scoring, pack views.
+Phase 6 – AI Advisor: stand up retrieval + prompt orchestration so users can ask for guidance.
+Phase 7 – Credits & Access Economy: automate credit issuance/consumption, gate intelligence by balance or purchase.
+Phase 8 – Walrus Integration (finish): wire the existing endpoints to real Walrus deployments, define artifact formats, persist digests.
+Phase 9 – UX & Demo Layer: build the dashboard, contributor views, credit balances, and evidence visuals.
+Phase 10 – Integration & Submission: run full end-to-end verification, capture demos, finalize docs, and prepare the hackathon package.
+
+SUI WALLET
+│ Created new keypair and saved it to keystore.                                               │
+├────────────────┬────────────────────────────────────────────────────────────────────────────┤
+│ alias          │ nostalgic-euclase                                                          │
+│ address        │ 0xddc2d696e9ca2eb6c145ae4ee2c772c03d673a84d749732da62ba01ba0d3b376         │
+│ keyScheme      │ ed25519                                                                    │    
+│ recoveryPhrase │ erase impulse sport find south together equal wire debate blue width brand

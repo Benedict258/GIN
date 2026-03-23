@@ -1,0 +1,11 @@
+{
+  "content": {
+    "title": "Enemy Activity Detected",
+    "summary": "Multiple hostile entities detected in Sector A",
+    "message": "Enemy activity detected in Sector A",
+    "sector": "A",
+    "type": "enemy_activity"
+  },
+  "artifactType": "intelligence_report",
+  "confidenceScore": 92
+}

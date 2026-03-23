@@ -1,38 +1,24 @@
 import { Suspense } from "react";
 import { DAppKitSlot } from "../components/dapp-kit-slot";
-import { recommendationSchema, sectorSummarySchema } from "@gin/shared";
+import { ReportForm } from "../components/report-form";
+import { fetchRecommendations, fetchSectorIntel } from "../lib/api";
 
-const previewSectors = [
-  sectorSummarySchema.parse({
-    location: "sector-alpha",
-    threatScore: 72,
-    opportunityScore: 31,
-    confidenceScore: 84,
-    verificationState: "verified",
-    topSignals: ["enemy_sighting", "jump_activity"],
-    updatedAt: new Date().toISOString()
-  }),
-  sectorSummarySchema.parse({
-    location: "sector-beta",
-    threatScore: 22,
-    opportunityScore: 81,
-    confidenceScore: 67,
-    verificationState: "emerging",
-    topSignals: ["resource_cluster", "safe_route"],
-    updatedAt: new Date().toISOString()
-  })
-];
+export const dynamic = "force-dynamic";
 
-const previewRecommendation = recommendationSchema.parse({
-  title: "Reroute Through Sector Beta",
-  summary: "Threat is low, opportunity is rising, and current confidence is acceptable.",
-  confidenceScore: 67,
-  recommendedAction: "Use Beta as the safer corridor while Alpha stabilizes.",
-  evidence: ["Low hostile density", "Recent resource signal cluster"],
-  relatedLocations: ["sector-alpha", "sector-beta"]
-});
+export default async function HomePage() {
+  const [sectors, recommendations] = await Promise.all([
+    fetchSectorIntel().catch((error) => {
+      console.error("Failed to load sectors", error);
+      return [];
+    }),
+    fetchRecommendations().catch((error) => {
+      console.error("Failed to load recommendations", error);
+      return [];
+    })
+  ]);
 
-export default function HomePage() {
+  const liveRecommendation = recommendations[0];
+
   return (
     <main className="page-shell">
       <section className="hero">
@@ -51,32 +37,50 @@ export default function HomePage() {
 
         <article className="panel">
           <p className="panel-label">Live Recommendation</p>
-          <h2>{previewRecommendation.title}</h2>
-          <p>{previewRecommendation.summary}</p>
-          <p className="metric">
-            Confidence <strong>{previewRecommendation.confidenceScore}</strong>
-          </p>
-          <p>{previewRecommendation.recommendedAction}</p>
+          {liveRecommendation ? (
+            <>
+              <h2>{liveRecommendation.title}</h2>
+              <p>{liveRecommendation.summary}</p>
+              <p className="metric">
+                Confidence <strong>{liveRecommendation.confidenceScore}</strong>
+              </p>
+              <p>{liveRecommendation.recommendedAction}</p>
+              <p className="status">
+                Evidence: {liveRecommendation.evidence.join(", ") || "Awaiting signals"}
+              </p>
+            </>
+          ) : (
+            <p className="status">No live recommendation yet. Submit reports to unlock intelligence.</p>
+          )}
         </article>
 
         <article className="panel panel-wide">
           <p className="panel-label">Sector Signals</p>
-          <ul className="sector-list">
-            {previewSectors.map((sector) => (
-              <li key={sector.location}>
-                <div>
-                  <strong>{sector.location}</strong>
-                  <span>{sector.verificationState}</span>
-                </div>
-                <div className="scores">
-                  <span>Threat {sector.threatScore}</span>
-                  <span>Opportunity {sector.opportunityScore}</span>
-                  <span>Confidence {sector.confidenceScore}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
+          {sectors.length ? (
+            <ul className="sector-list">
+              {sectors.map((sector) => (
+                <li key={sector.location}>
+                  <div>
+                    <strong>{sector.location}</strong>
+                    <span>{sector.verificationState}</span>
+                  </div>
+                  <div className="scores">
+                    <span>Threat {sector.threatScore}</span>
+                    <span>Opportunity {sector.opportunityScore}</span>
+                    <span>Confidence {sector.confidenceScore}</span>
+                  </div>
+                  {sector.topSignals.length ? (
+                    <p className="status">Signals: {sector.topSignals.join(", ")}</p>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="status">No verified sector intelligence yet.</p>
+          )}
         </article>
+
+        <ReportForm />
       </section>
     </main>
   );

@@ -15,7 +15,7 @@ export function AssemblyPanel() {
   const searchParams = useSearchParams();
   const tenant = resolveTenant(searchParams.get("tenant"));
   const itemId = resolveItemId(searchParams.get("itemId"));
-  const { isConnected, handleConnect } = useConnection();
+  const { isConnected, handleConnect, walletAddress } = useConnection();
   const { assembly, loading } = useSmartObject();
 
   return (
@@ -39,7 +39,7 @@ export function AssemblyPanel() {
         </div>
         <div>
           <span>Wallet</span>
-          <strong>{isConnected ? "Connected" : "Not connected"}</strong>
+          <strong>{isConnected ? walletAddress ?? "Connected" : "Not connected"}</strong>
         </div>
       </div>
 

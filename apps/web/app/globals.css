@@ -133,10 +133,58 @@ h1 {
   cursor: pointer;
 }
 
+.form-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.field-group span {
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.field-group input,
+.field-group select,
+.field-group textarea {
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(6, 14, 28, 0.6);
+  color: var(--text);
+  padding: 12px;
+  font: inherit;
+  resize: vertical;
+}
+
+.field-group input[type="range"] {
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.field-full {
+  grid-column: span 2;
+}
+
 .status,
 .status-card {
   margin-top: 18px;
   color: var(--muted);
+}
+
+.status-error {
+  color: #ff7a7a;
+}
+
+.status-success {
+  color: var(--accent);
 }
 
 .status-card {
@@ -193,6 +241,14 @@ h1 {
   }
 
   .panel-wide {
+    grid-column: span 1;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .field-full {
     grid-column: span 1;
   }
 }
