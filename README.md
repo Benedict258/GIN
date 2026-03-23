@@ -78,9 +78,9 @@ GIN exposes transaction digests for every artifact publication and credit reward
 
 ```json
 {
-	"artifactType": "intelligence_report",
-	"blobId": "walrus_1774270405885",
-	"transactionDigest": "7vbtxP43cakqQc53GiSmbkJqEPhPUzPHVcG5SRqsWuVi"
+  "artifactType": "intelligence_report",
+  "blobId": "walrus_1774270405885",
+  "transactionDigest": "7vbtxP43cakqQc53GiSmbkJqEPhPUzPHVcG5SRqsWuVi"
 }
 ```
 
@@ -93,10 +93,10 @@ GIN exposes transaction digests for every artifact publication and credit reward
 
 ```json
 {
-	"profileId": "58fea314-ad07-4b1b-936a-63b4b952132e",
-	"credits": 10,
-	"reportDigestHex": "34eb6fda790b85ee117d222554f795de1e37e2ba4d81407576e7d0df8e2e7d42",
-	"transactionDigest": "8FHAowCHvbjcrBFK7ByEv9P2zb6FETzRsN74fdT4AxtC"
+  "profileId": "58fea314-ad07-4b1b-936a-63b4b952132e",
+  "credits": 10,
+  "reportDigestHex": "34eb6fda790b85ee117d222554f795de1e37e2ba4d81407576e7d0df8e2e7d42",
+  "transactionDigest": "8FHAowCHvbjcrBFK7ByEv9P2zb6FETzRsN74fdT4AxtC"
 }
 ```
 
