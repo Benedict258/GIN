@@ -17,6 +17,20 @@ export function AssemblyPanel() {
   const itemId = resolveItemId(searchParams.get("itemId"));
   const { isConnected, handleConnect, walletAddress } = useConnection();
   const { assembly, loading } = useSmartObject();
+  const suiNetwork = process.env.NEXT_PUBLIC_SUI_NETWORK ?? "testnet";
+  const proofLinks = [
+    {
+      label: "Artifact publish",
+      digest: "7vbtxP43cakqQc53GiSmbkJqEPhPUzPHVcG5SRqsWuVi"
+    },
+    {
+      label: "Contributor credits",
+      digest: "8FHAowCHvbjcrBFK7ByEv9P2zb6FETzRsN74fdT4AxtC"
+    }
+  ];
+
+  const buildExplorerUrl = (digest: string) =>
+    `https://explorer.sui.io/transaction/${digest}?network=${suiNetwork}`;
 
   return (
     <article className="panel">
@@ -61,6 +75,19 @@ export function AssemblyPanel() {
           No assembly payload is available yet for the current item context.
         </p>
       ) : null}
+      <section className="status-card">
+        <p>Recent on-chain proofs</p>
+        <ul className="info-list">
+          {proofLinks.map((proof) => (
+            <li key={proof.digest}>
+              <span>{proof.label}</span>
+              <a href={buildExplorerUrl(proof.digest)} target="_blank" rel="noreferrer">
+                Verify on Sui Explorer
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
     </article>
   );
 }

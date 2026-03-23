@@ -66,3 +66,40 @@ Configure the following environment variables before hitting the endpoints:
 - `SUI_NETWORK` (`mainnet`, `testnet`, or `devnet`) plus `SUI_RPC_URL` if you need a custom fullnode (defaults to `https://fullnode.<network>.sui.io`)
 
 Both endpoints return the on-chain transaction digest so the Walrus artifact / credit receipts can be verified in block explorers.
+
+## Validation & On-chain Proofs
+
+GIN exposes transaction digests for every artifact publication and credit reward so judges can verify actions directly on Sui testnet. Walrus storage is simulated for hackathon reliability, but the Move contract writes are fully live.
+
+### Artifact publication example
+
+- Endpoint: `POST /api/contracts/publish-artifact`
+- Sample response excerpt:
+
+```json
+{
+	"artifactType": "intelligence_report",
+	"blobId": "walrus_1774270405885",
+	"transactionDigest": "7vbtxP43cakqQc53GiSmbkJqEPhPUzPHVcG5SRqsWuVi"
+}
+```
+
+- Explorer proof: https://explorer.sui.io/transaction/7vbtxP43cakqQc53GiSmbkJqEPhPUzPHVcG5SRqsWuVi?network=testnet
+
+### Contributor credit reward example
+
+- Endpoint: `POST /api/contracts/award-credits`
+- Sample response excerpt:
+
+```json
+{
+	"profileId": "58fea314-ad07-4b1b-936a-63b4b952132e",
+	"credits": 10,
+	"reportDigestHex": "34eb6fda790b85ee117d222554f795de1e37e2ba4d81407576e7d0df8e2e7d42",
+	"transactionDigest": "8FHAowCHvbjcrBFK7ByEv9P2zb6FETzRsN74fdT4AxtC"
+}
+```
+
+- Explorer proof: https://explorer.sui.io/transaction/8FHAowCHvbjcrBFK7ByEv9P2zb6FETzRsN74fdT4AxtC?network=testnet
+
+> Tip: replace the sample digests above with your own calls during testing and drop them into the explorer link to confirm the on-chain state transitions.
