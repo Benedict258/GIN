@@ -10,6 +10,7 @@ export type ReportRow = {
   id: string;
   reporter_id: string;
   location: string;
+  faction_tag: string | null;
   signal_type: "enemy_sighting" | "resource_cluster" | "safe_route" | "jump_activity" | "trade_signal" | "manual_report";
   source: "player" | "system" | "world_event" | "knowledge_base";
   summary: string;
@@ -17,6 +18,14 @@ export type ReportRow = {
   importance_score: number;
   confidence_score: number;
   verification_state: "unverified" | "emerging" | "verified" | "contested" | "stale";
+  dedupe_hash: string;
+  source_count: number;
+  unique_sources: number;
+  unique_factions: number;
+  consensus_score: number;
+  recency_score: number;
+  reputation_score: number;
+  confidence_components: Json | null;
   metadata: Json | null;
   created_at: string;
   updated_at: string;
@@ -30,6 +39,40 @@ export type SectorSummaryRow = {
   verification_state: "unverified" | "emerging" | "verified" | "contested" | "stale";
   top_signals: Json | null;
   updated_at: string;
+};
+
+export type RouteSummaryRow = {
+  origin_location: string;
+  destination_location: string;
+  threat_score: number;
+  safety_score: number;
+  confidence_score: number;
+  verification_state: "unverified" | "emerging" | "verified" | "contested" | "stale";
+  route_state: string;
+  advisory: Json | null;
+  top_signals: Json | null;
+  updated_at: string;
+};
+
+export type FactionIntelRow = {
+  faction: string;
+  report_count: number;
+  verified_count: number;
+  avg_confidence: number;
+  dominant_signal: ReportRow["signal_type"] | null;
+  top_locations: Json | null;
+  updated_at: string;
+};
+
+export type StructuredIntelSnapshotRow = {
+  id: string;
+  snapshot_type: string;
+  payload: Json;
+  walrus_blob_id: string | null;
+  route_count: number;
+  sector_count: number;
+  faction_count: number;
+  created_at: string;
 };
 
 export type RecommendationRow = {

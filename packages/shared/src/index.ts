@@ -25,14 +25,28 @@ export const createReportInputSchema = z.object({
   source: z.enum(["player", "system", "world_event", "knowledge_base"]),
   intensity: z.number().min(1).max(100),
   importanceScore: z.number().min(1).max(100),
-  metadata: z.record(z.string(), z.unknown()).default({})
+  metadata: z.record(z.string(), z.unknown()).default({}),
+  factionTag: z.string().min(1).max(64).optional()
+});
+
+export const confidenceComponentsSchema = z.object({
+  base: z.number().min(0).max(100),
+  consensus: z.number().min(0).max(100),
+  recency: z.number().min(0).max(100),
+  reputation: z.number().min(0).max(100),
+  diversity: z.number().min(0).max(100)
 });
 
 export const createReportSchema = createReportInputSchema.extend({
   id: z.string(),
   createdAt: z.string().datetime(),
   confidenceScore: z.number().min(0).max(100),
-  verificationState: verificationStateSchema
+  verificationState: verificationStateSchema,
+  dedupeHash: z.string().min(1),
+  sourceCount: z.number().int().min(1),
+  uniqueSources: z.number().int().min(0),
+  uniqueFactions: z.number().int().min(0),
+  confidenceComponents: confidenceComponentsSchema
 });
 
 export const sectorSummarySchema = z.object({
@@ -43,6 +57,41 @@ export const sectorSummarySchema = z.object({
   verificationState: verificationStateSchema,
   topSignals: z.array(signalTypeSchema),
   updatedAt: z.string().datetime()
+});
+
+export const routeStateSchema = z.enum(["safe", "volatile", "hostile"]);
+
+export const routeSummarySchema = z.object({
+  origin: z.string().min(1),
+  destination: z.string().min(1),
+  threatScore: z.number().min(0).max(100),
+  safetyScore: z.number().min(0).max(100),
+  confidenceScore: z.number().min(0).max(100),
+  verificationState: verificationStateSchema,
+  routeState: routeStateSchema,
+  advisory: z.array(z.string()).default([]),
+  topSignals: z.array(signalTypeSchema).default([]),
+  updatedAt: z.string().datetime()
+});
+
+export const factionIntelSchema = z.object({
+  faction: z.string().min(1),
+  reportCount: z.number().int().nonnegative(),
+  verifiedCount: z.number().int().nonnegative(),
+  avgConfidence: z.number().min(0).max(100),
+  dominantSignal: signalTypeSchema.nullable(),
+  topLocations: z.array(z.string()),
+  updatedAt: z.string().datetime()
+});
+
+export const structuredIntelSnapshotSchema = z.object({
+  id: z.string().uuid(),
+  snapshotType: z.string().min(1),
+  sectors: sectorSummarySchema.array(),
+  routes: routeSummarySchema.array(),
+  factions: factionIntelSchema.array(),
+  walrusBlobId: z.string().optional(),
+  createdAt: z.string().datetime()
 });
 
 export const recommendationSchema = z.object({
@@ -132,6 +181,9 @@ export const healthResponseSchema = z.object({
 export type CreateReportInput = z.infer<typeof createReportInputSchema>;
 export type Report = z.infer<typeof createReportSchema>;
 export type SectorSummary = z.infer<typeof sectorSummarySchema>;
+export type RouteSummary = z.infer<typeof routeSummarySchema>;
+export type FactionIntel = z.infer<typeof factionIntelSchema>;
+export type StructuredIntelSnapshot = z.infer<typeof structuredIntelSnapshotSchema>;
 export type Recommendation = z.infer<typeof recommendationSchema>;
 export type WalrusArtifactContent = z.infer<typeof walrusArtifactContentSchema>;
 export type Profile = z.infer<typeof profileSchema>;
@@ -142,3 +194,5 @@ export type PublishArtifactInput = z.infer<typeof publishArtifactInputSchema>;
 export type PublishArtifactResponse = z.infer<typeof publishArtifactResponseSchema>;
 export type AwardCreditsRequest = z.infer<typeof awardCreditsRequestSchema>;
 export type AwardCreditsResponse = z.infer<typeof awardCreditsResponseSchema>;
+export type ConfidenceComponents = z.infer<typeof confidenceComponentsSchema>;
+export type HealthResponse = z.infer<typeof healthResponseSchema>;

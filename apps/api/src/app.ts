@@ -1,11 +1,13 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import { z } from "zod";
 import {
   awardCreditsRequestSchema,
   awardCreditsResponseSchema,
   contributorProfileSchema,
   createReportSchema,
   createReportInputSchema,
+  factionIntelSchema,
   healthResponseSchema,
   profileConnectInputSchema,
   profileConnectResponseSchema,
@@ -13,7 +15,9 @@ import {
   publishArtifactInputSchema,
   publishArtifactResponseSchema,
   recommendationSchema,
+  routeSummarySchema,
   sectorSummarySchema,
+  structuredIntelSnapshotSchema,
   walrusArtifactContentSchema
 } from "@gin/shared";
 import type { CreateReportInput, PublishArtifactInput, Report, WalrusArtifactContent } from "@gin/shared";
@@ -23,15 +27,41 @@ import type {
   RecommendationRow,
   ReportRow,
   SectorSummaryRow,
+  RouteSummaryRow,
+  FactionIntelRow,
+  StructuredIntelSnapshotRow,
   Json,
   ProfileRow,
   ContributorProfileRow
 } from "./lib/database.types.js";
 import { awardCreditsOnChain, deriveReportDigest, isSuiConfigured, publishArtifactOnChain } from "./lib/contracts.js";
-import { pinWalrusArtifact } from "./lib/walrus.js";
+import { isWalrusConfigured, pinWalrusArtifact } from "./lib/walrus.js";
+import { deriveDedupeHashFromPayload, deriveDedupeHashFromRow, recomputeClusterTrust } from "./lib/trust.js";
+import { ensureConfidenceComponents } from "./lib/trust-components.js";
+import { recomputeSectorSummaries } from "./lib/sector-intel.js";
+import { recomputeRouteSummaries } from "./lib/route-intel.js";
+import { recomputeFactionIntel } from "./lib/faction-intel.js";
+import { createStructuredSnapshot } from "./lib/structured-intel.js";
+import { runIntelAutomationCycle } from "./lib/automation.js";
 
 const DEFAULT_SECTOR_LIMIT = 20;
 const DEFAULT_RECOMMENDATION_LIMIT = 10;
+const DEFAULT_REPORT_LIMIT = 20;
+const DEFAULT_ROUTE_LIMIT = 10;
+const DEFAULT_FACTION_LIMIT = 10;
+
+const snapshotPayloadSchema = z.object({
+  publishArtifact: z.boolean().optional(),
+  confidenceScore: z.number().min(0).max(100).default(75)
+});
+
+const snapshotRequestSchema = snapshotPayloadSchema.default({ publishArtifact: false, confidenceScore: 75 });
+
+const automationRequestSchema = snapshotPayloadSchema
+  .extend({
+    skipSnapshot: z.boolean().optional()
+  })
+  .default({ publishArtifact: false, confidenceScore: 75, skipSnapshot: false });
 
 export function buildApp() {
   const app = Fastify({
@@ -72,6 +102,132 @@ export function buildApp() {
     }
   });
 
+  app.get("/api/intel/reports", async (request, reply) => {
+    try {
+      const reports = await fetchRecentReports();
+      return { reports };
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to fetch reports");
+      reply.code(500);
+      return { error: "Failed to fetch reports" };
+    }
+  });
+
+  app.get("/api/intel/routes", async (request, reply) => {
+    try {
+      const routes = await fetchRouteSummaries();
+      return { routes };
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to fetch routes");
+      reply.code(500);
+      return { error: "Failed to fetch route intelligence" };
+    }
+  });
+
+  app.get("/api/intel/factions", async (request, reply) => {
+    try {
+      const factions = await fetchFactionIntel();
+      return { factions };
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to fetch faction intel");
+      reply.code(500);
+      return { error: "Failed to fetch faction intelligence" };
+    }
+  });
+
+  app.post("/api/intel/sectors/recompute", async (request, reply) => {
+    try {
+      const summaries = await recomputeSectorSummaries();
+      return { sectors: summaries.map(mapSectorRow) };
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to recompute sectors");
+      reply.code(500);
+      return { error: "Failed to recompute sector intelligence" };
+    }
+  });
+
+  app.post("/api/intel/routes/recompute", async (request, reply) => {
+    try {
+      const summaries = await recomputeRouteSummaries();
+      return { routes: summaries.map(mapRouteRow) };
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to recompute routes");
+      reply.code(500);
+      return { error: "Failed to recompute route intelligence" };
+    }
+  });
+
+  app.post("/api/intel/factions/recompute", async (request, reply) => {
+    try {
+      const summaries = await recomputeFactionIntel();
+      return { factions: summaries.map(mapFactionRow) };
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to recompute factions");
+      reply.code(500);
+      return { error: "Failed to recompute faction intelligence" };
+    }
+  });
+
+  app.get("/api/intel/snapshots/latest", async (request, reply) => {
+    try {
+      const snapshot = await fetchLatestSnapshot();
+      return { snapshot: snapshot ? structuredIntelSnapshotSchema.parse(snapshot) : null };
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to load snapshot");
+      reply.code(500);
+      return { error: "Failed to load snapshot" };
+    }
+  });
+
+  app.post("/api/intel/snapshots", async (request, reply) => {
+    const payload = snapshotRequestSchema.parse(request.body ?? {});
+
+    if (payload.publishArtifact && !isWalrusConfigured()) {
+      reply.code(503);
+      return { error: "Walrus integration is disabled" };
+    }
+
+    try {
+      const snapshot = await createStructuredSnapshot({
+        publishArtifact: payload.publishArtifact ?? false,
+        confidenceScore: payload.confidenceScore
+      });
+      return { snapshot: structuredIntelSnapshotSchema.parse(snapshot) };
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to build snapshot");
+      reply.code(500);
+      return { error: "Failed to build structured intelligence snapshot" };
+    }
+  });
+
+  app.post("/api/automation/cycle", async (request, reply) => {
+    const payload = automationRequestSchema.parse(request.body ?? {});
+
+    if (payload.publishArtifact && !isWalrusConfigured()) {
+      reply.code(503);
+      return { error: "Walrus integration is disabled" };
+    }
+
+    try {
+      const result = await runIntelAutomationCycle({
+        confidenceScore: payload.confidenceScore,
+        publishArtifact: payload.publishArtifact ?? false,
+        snapshot: payload.skipSnapshot ? false : true
+      });
+
+      return {
+        sectorsRecomputed: result.sectorsRecomputed,
+        routesRecomputed: result.routesRecomputed,
+        factionsRecomputed: result.factionsRecomputed,
+        snapshot: result.snapshot ? structuredIntelSnapshotSchema.parse(result.snapshot) : undefined
+      };
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to run automation cycle");
+      reply.code(500);
+      return { error: "Failed to execute automation cycle" };
+    }
+  });
+
   app.post("/api/reports", async (request, reply) => {
     const payload = createReportInputSchema.parse(request.body);
 
@@ -102,6 +258,11 @@ export function buildApp() {
 
   app.post("/api/contracts/publish-artifact", async (request, reply) => {
     const payload = publishArtifactInputSchema.parse(request.body);
+
+    if (!isWalrusConfigured()) {
+      reply.code(503);
+      return { error: "Walrus integration is disabled" };
+    }
 
     if (!isSuiConfigured()) {
       reply.code(503);
@@ -191,7 +352,22 @@ async function fetchSectorSummaries() {
     throw new Error(error.message);
   }
 
-  return (data ?? []).map(mapSectorRow);
+  if (!data || data.length === 0) {
+    await recomputeSectorSummaries();
+    const { data: refreshed, error: refreshError } = await supabase
+      .from("sector_summaries")
+      .select("*")
+      .order("updated_at", { ascending: false })
+      .limit(DEFAULT_SECTOR_LIMIT);
+
+    if (refreshError) {
+      throw new Error(refreshError.message);
+    }
+
+    return (refreshed ?? []).map(mapSectorRow);
+  }
+
+  return data.map(mapSectorRow);
 }
 
 async function fetchRecommendations() {
@@ -208,7 +384,100 @@ async function fetchRecommendations() {
   return (data ?? []).map(mapRecommendationRow);
 }
 
+async function fetchRecentReports() {
+  const { data, error } = await supabase
+    .from("reports")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(DEFAULT_REPORT_LIMIT);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []).map(mapReportRow);
+}
+
+async function fetchRouteSummaries() {
+  const { data, error } = await supabase
+    .from("route_summaries")
+    .select("*")
+    .order("updated_at", { ascending: false })
+    .limit(DEFAULT_ROUTE_LIMIT);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data || data.length === 0) {
+    await recomputeRouteSummaries();
+    const { data: refreshed, error: refreshError } = await supabase
+      .from("route_summaries")
+      .select("*")
+      .order("updated_at", { ascending: false })
+      .limit(DEFAULT_ROUTE_LIMIT);
+
+    if (refreshError) {
+      throw new Error(refreshError.message);
+    }
+
+    return (refreshed ?? []).map(mapRouteRow);
+  }
+
+  return data.map(mapRouteRow);
+}
+
+async function fetchFactionIntel() {
+  const { data, error } = await supabase
+    .from("faction_intel_summaries")
+    .select("*")
+    .order("updated_at", { ascending: false })
+    .limit(DEFAULT_FACTION_LIMIT);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data || data.length === 0) {
+    await recomputeFactionIntel();
+    const { data: refreshed, error: refreshError } = await supabase
+      .from("faction_intel_summaries")
+      .select("*")
+      .order("updated_at", { ascending: false })
+      .limit(DEFAULT_FACTION_LIMIT);
+
+    if (refreshError) {
+      throw new Error(refreshError.message);
+    }
+
+    return (refreshed ?? []).map(mapFactionRow);
+  }
+
+  return data.map(mapFactionRow);
+}
+
+async function fetchLatestSnapshot() {
+  const { data, error } = await supabase
+    .from("structured_intel_snapshots")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return mapSnapshotRow(data as StructuredIntelSnapshotRow);
+}
+
 async function saveReport(payload: CreateReportInput) {
+  const dedupeHash = deriveDedupeHashFromPayload(payload);
+  const factionTag = payload.factionTag?.trim().toLowerCase() ?? null;
   const { data, error } = await supabase
     .from("reports")
     .insert({
@@ -219,7 +488,9 @@ async function saveReport(payload: CreateReportInput) {
       summary: payload.summary,
       intensity: payload.intensity,
       importance_score: payload.importanceScore,
-      metadata: payload.metadata ?? {}
+      metadata: payload.metadata ?? {},
+      dedupe_hash: dedupeHash,
+      faction_tag: factionTag
     })
     .select("*")
     .single();
@@ -228,10 +499,14 @@ async function saveReport(payload: CreateReportInput) {
     throw new Error(error?.message ?? "Unknown Supabase error");
   }
 
-  return mapReportRow(data);
+  const recalculated = await recomputeClusterTrust(dedupeHash, data.id);
+  return mapReportRow(recalculated ?? data);
 }
 
 function mapReportRow(row: ReportRow) {
+  const components = ensureConfidenceComponents(row.confidence_components);
+  const dedupeHash = row.dedupe_hash ?? deriveDedupeHashFromRow(row);
+
   return createReportSchema.parse({
     id: row.id,
     reporterId: row.reporter_id,
@@ -244,9 +519,16 @@ function mapReportRow(row: ReportRow) {
     metadata: (row.metadata as Record<string, unknown> | null) ?? {},
     createdAt: row.created_at,
     confidenceScore: row.confidence_score,
-    verificationState: row.verification_state
+    verificationState: row.verification_state,
+    dedupeHash,
+    sourceCount: row.source_count ?? 1,
+    uniqueSources: row.unique_sources ?? 1,
+    uniqueFactions: row.unique_factions ?? 0,
+    confidenceComponents: components,
+    factionTag: row.faction_tag ?? undefined
   });
 }
+
 
 function mapSectorRow(row: SectorSummaryRow) {
   return sectorSummarySchema.parse({
@@ -268,6 +550,58 @@ function mapRecommendationRow(row: RecommendationRow) {
     confidenceScore: row.confidence_score,
     evidence: ensureStringArray(row.evidence),
     relatedLocations: ensureStringArray(row.related_locations)
+  });
+}
+
+function mapRouteRow(row: RouteSummaryRow) {
+  return routeSummarySchema.parse({
+    origin: row.origin_location,
+    destination: row.destination_location,
+    threatScore: row.threat_score,
+    safetyScore: row.safety_score,
+    confidenceScore: row.confidence_score,
+    verificationState: row.verification_state,
+    routeState: normalizeRouteState(row.route_state),
+    topSignals: ensureStringArray(row.top_signals),
+    advisory: ensureStringArray(row.advisory),
+    updatedAt: row.updated_at
+  });
+}
+
+function normalizeRouteState(value: string | null | undefined) {
+  if (value === "hostile" || value === "volatile" || value === "safe") {
+    return value;
+  }
+
+  return "safe";
+}
+
+function mapFactionRow(row: FactionIntelRow) {
+  return factionIntelSchema.parse({
+    faction: row.faction,
+    reportCount: row.report_count,
+    verifiedCount: row.verified_count,
+    avgConfidence: row.avg_confidence,
+    dominantSignal: row.dominant_signal,
+    topLocations: ensureStringArray(row.top_locations),
+    updatedAt: row.updated_at
+  });
+}
+
+function mapSnapshotRow(row: StructuredIntelSnapshotRow) {
+  const payload = asRecord(row.payload) ?? {};
+  const sectors = sectorSummarySchema.array().parse(payload.sectors ?? []);
+  const routes = routeSummarySchema.array().parse(payload.routes ?? []);
+  const factions = factionIntelSchema.array().parse(payload.factions ?? []);
+
+  return structuredIntelSnapshotSchema.parse({
+    id: row.id,
+    snapshotType: row.snapshot_type,
+    sectors,
+    routes,
+    factions,
+    walrusBlobId: row.walrus_blob_id ?? undefined,
+    createdAt: row.created_at
   });
 }
 
@@ -520,4 +854,12 @@ function mapContributorRow(row: ContributorProfileRow) {
 function generateHandle(walletAddress: string) {
   const suffix = walletAddress.slice(-4);
   return `gin_${suffix}`;
+}
+
+function asRecord(value: Json | null) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as Record<string, unknown>;
 }

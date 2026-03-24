@@ -17,11 +17,17 @@ export interface WalrusPinResult {
   proof?: string;
 }
 
+const WALRUS_ENABLED = String(process.env.WALRUS_ENABLED ?? "false").toLowerCase() === "true";
+
 export function isWalrusConfigured() {
-  return true;
+  return WALRUS_ENABLED;
 }
 
 export async function pinWalrusArtifact(payload: WalrusArtifactPayload): Promise<WalrusPinResult> {
+  if (!WALRUS_ENABLED) {
+    throw new Error("Walrus integration is disabled");
+  }
+
   const artifactId = `walrus_${Date.now()}`;
 
   return {

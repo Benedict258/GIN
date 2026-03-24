@@ -3,6 +3,7 @@ node_modules
 dist
 .turbo
 .env
+.phase.txt
 .env.local
 .env.*.local
 coverage

@@ -1,27 +1,33 @@
 import {
-  CreateReportInput,
   AwardCreditsRequest,
   AwardCreditsResponse,
+  CreateReportInput,
   PublishArtifactInput,
   PublishArtifactResponse,
   awardCreditsRequestSchema,
   awardCreditsResponseSchema,
   createReportSchema,
+  factionIntelSchema,
   profileConnectInputSchema,
   profileConnectResponseSchema,
   publishArtifactInputSchema,
   publishArtifactResponseSchema,
   recommendationSchema,
-  sectorSummarySchema
+  routeSummarySchema,
+  sectorSummarySchema,
+  structuredIntelSnapshotSchema
 } from "@gin/shared";
 
 type SectorResponse = { sectors?: unknown };
 type RecommendationResponse = { recommendations?: unknown };
+type ReportsResponse = { reports?: unknown };
 type ReportResponse = { report?: unknown };
+type RoutesResponse = { routes?: unknown };
+type FactionResponse = { factions?: unknown };
+type SnapshotResponse = { snapshot?: unknown };
 type ProfileConnectResponse = unknown;
 
-const serverApiBaseUrl =
-  process.env.GIN_API_URL ?? process.env.NEXT_PUBLIC_GIN_API_URL ?? "http://localhost:4000";
+const serverApiBaseUrl = process.env.GIN_API_URL ?? process.env.NEXT_PUBLIC_GIN_API_URL ?? "http://localhost:4000";
 
 export function getServerApiBaseUrl() {
   return serverApiBaseUrl;
@@ -36,31 +42,118 @@ export function getBrowserApiBaseUrl() {
 }
 
 export async function fetchSectorIntel() {
-  const response = await fetch(`${getServerApiBaseUrl()}/api/intel/sectors`, {
-    cache: "no-store"
-  });
+  const response = await fetch(`${getServerApiBaseUrl()}/api/intel/sectors`, { cache: "no-store" });
 
   if (!response.ok) {
     throw new Error(`Failed to load sectors: ${response.status}`);
   }
 
   const json = (await response.json()) as SectorResponse;
-  const sectors = sectorSummarySchema.array().parse(json.sectors ?? []);
-  return sectors;
+  return sectorSummarySchema.array().parse(json.sectors ?? []);
 }
 
 export async function fetchRecommendations() {
-  const response = await fetch(`${getServerApiBaseUrl()}/api/intel/recommendations`, {
-    cache: "no-store"
-  });
+  const response = await fetch(`${getServerApiBaseUrl()}/api/intel/recommendations`, { cache: "no-store" });
 
   if (!response.ok) {
     throw new Error(`Failed to load recommendations: ${response.status}`);
   }
 
   const json = (await response.json()) as RecommendationResponse;
-  const recommendations = recommendationSchema.array().parse(json.recommendations ?? []);
-  return recommendations;
+  return recommendationSchema.array().parse(json.recommendations ?? []);
+}
+
+export async function fetchRecentReports() {
+  const response = await fetch(`${getServerApiBaseUrl()}/api/intel/reports`, { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error(`Failed to load reports: ${response.status}`);
+  }
+
+  const json = (await response.json()) as ReportsResponse;
+  return createReportSchema.array().parse(json.reports ?? []);
+}
+
+export async function fetchRouteIntel() {
+  const response = await fetch(`${getServerApiBaseUrl()}/api/intel/routes`, { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error(`Failed to load routes: ${response.status}`);
+  }
+
+  const json = (await response.json()) as RoutesResponse;
+  return routeSummarySchema.array().parse(json.routes ?? []);
+}
+
+export async function fetchFactionIntel() {
+  const response = await fetch(`${getServerApiBaseUrl()}/api/intel/factions`, { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error(`Failed to load faction intel: ${response.status}`);
+  }
+
+  const json = (await response.json()) as FactionResponse;
+  return factionIntelSchema.array().parse(json.factions ?? []);
+}
+
+export async function fetchLatestSnapshot() {
+  const response = await fetch(`${getServerApiBaseUrl()}/api/intel/snapshots/latest`, { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error(`Failed to load snapshot: ${response.status}`);
+  }
+
+  const json = (await response.json()) as SnapshotResponse;
+  return json.snapshot ? structuredIntelSnapshotSchema.parse(json.snapshot) : null;
+}
+
+export async function recomputeRouteIntel() {
+  const response = await fetch(`${getServerApiBaseUrl()}/api/intel/routes/recompute`, {
+    method: "POST",
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to recompute routes: ${response.status}`);
+  }
+
+  const json = (await response.json()) as RoutesResponse;
+  return routeSummarySchema.array().parse(json.routes ?? []);
+}
+
+export async function recomputeFactionIntel() {
+  const response = await fetch(`${getServerApiBaseUrl()}/api/intel/factions/recompute`, {
+    method: "POST",
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to recompute faction intel: ${response.status}`);
+  }
+
+  const json = (await response.json()) as FactionResponse;
+  return factionIntelSchema.array().parse(json.factions ?? []);
+}
+
+export async function createStructuredSnapshot(payload: { publishArtifact?: boolean; confidenceScore: number }) {
+  const response = await fetch(`${getServerApiBaseUrl()}/api/intel/snapshots`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to create snapshot: ${response.status}`);
+  }
+
+  const json = (await response.json()) as SnapshotResponse;
+  if (!json.snapshot) {
+    throw new Error("Snapshot payload missing from response");
+  }
+
+  return structuredIntelSnapshotSchema.parse(json.snapshot);
 }
 
 export async function submitReport(payload: CreateReportInput) {

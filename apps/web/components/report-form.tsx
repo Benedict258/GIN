@@ -36,7 +36,7 @@ export function ReportForm() {
   }
 
   function resetForm() {
-    setPayload((prev) => ({ ...defaultPayload, reporterId: prev.reporterId }));
+    setPayload((prev) => ({ ...defaultPayload, reporterId: prev.reporterId, factionTag: prev.factionTag }));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -110,6 +110,19 @@ export function ReportForm() {
             <option value="world_event">World event</option>
             <option value="knowledge_base">Knowledge base</option>
           </select>
+        </label>
+
+        <label className="field-group">
+          <span>Faction / Pack (optional)</span>
+          <input
+            type="text"
+            value={payload.factionTag ?? ""}
+            onChange={(event) => {
+              const value = event.target.value;
+              update("factionTag", value.length ? value : undefined);
+            }}
+            placeholder="utopia-pack-01"
+          />
         </label>
 
         <label className="field-group field-full">

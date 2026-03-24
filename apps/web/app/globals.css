@@ -133,6 +133,32 @@ h1 {
   cursor: pointer;
 }
 
+.action-button.ghost {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid rgba(120, 240, 194, 0.5);
+}
+
+.inline-form {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.snapshot-form {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.snapshot-form .field-group {
+  flex: 1;
+  min-width: 220px;
+}
+
 .form-grid {
   margin-top: 18px;
   display: grid;
