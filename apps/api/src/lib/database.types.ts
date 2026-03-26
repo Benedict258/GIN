@@ -101,6 +101,8 @@ export type ContributorProfileRow = {
   profile_id: string;
   reputation_score: number;
   credits_balance: number;
+  lifetime_credits: number;
+  tier_progress: number;
   contribution_count: number;
   last_contribution_at: string | null;
   created_at: string;
@@ -117,8 +119,35 @@ export type CreditEventRow = {
     | "world_data_contributed"
     | "intel_purchased"
     | "manual_adjustment";
+  action_key: string | null;
   delta: number;
   importance_score: number;
+  usefulness_score: number;
+  verification_outcome: string | null;
+  balance_after: number | null;
+  access_tier_snapshot: string | null;
   metadata: Json | null;
+  created_at: string;
+};
+
+export type AccessTierRow = {
+  tier_id: string;
+  display_name: string;
+  min_credits: number;
+  description: string | null;
+  privileges: Json | null;
+  is_default: boolean;
+  created_at: string;
+};
+
+export type ContributionActionRow = {
+  action_key: string;
+  display_name: string;
+  description: string | null;
+  base_reward: number;
+  importance_weight: number;
+  usefulness_weight: number;
+  metadata: Json | null;
+  is_active: boolean;
   created_at: string;
 };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition, type FormEvent } from "react";
-import type { CreateReportInput, ContributorProfile } from "@gin/shared";
+import type { AccessStatusResponse, CreateReportInput, ContributorProfile, CreditEvent } from "@gin/shared";
 import { submitReport } from "../lib/api";
 import { useProfile } from "../hooks/useProfile";
 import type { ProfileStatus as ProfileStatusType } from "../context/profile-context";
@@ -23,6 +23,8 @@ export function ReportForm() {
   const [message, setMessage] = useState<string>("");
   const [isPending, startTransition] = useTransition();
   const profileState = useProfile();
+  const accessStatus = profileState.accessStatus;
+  const ledgerEvents = profileState.ledger ?? [];
   const reporterId = profileState.profileContext?.profile.id ?? payload.reporterId;
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export function ReportForm() {
 
     startTransition(async () => {
       try {
-        await submitReport(payload);
+        await submitReport(payload, profileState.walletAddress);
         setStatus("success");
         setMessage("Report submitted to GIN core intelligence.");
         resetForm();
@@ -166,11 +168,17 @@ export function ReportForm() {
           status={profileState.status}
           walletAddress={profileState.walletAddress}
           credits={profileState.profileContext?.contributor.creditsBalance}
+          tierName={accessStatus?.tier.displayName}
         />
 
         {profileState.profileContext ? (
-          <ContributorSummary contributor={profileState.profileContext.contributor} />
+          <ContributorSummary
+            contributor={profileState.profileContext.contributor}
+            accessStatus={accessStatus}
+          />
         ) : null}
+
+        <CreditsLedger events={ledgerEvents} isConnected={profileState.status === "connected"} />
 
         {status !== "idle" ? (
           <p className={`status ${status === "error" ? "status-error" : "status-success"}`}>{message}</p>
@@ -179,14 +187,16 @@ export function ReportForm() {
   );
 }
 
-  function ProfileStatus({
+function ProfileStatus({
     status,
     walletAddress,
-    credits
+    credits,
+    tierName
   }: {
     status: ProfileStatusType;
     walletAddress?: string;
     credits?: number;
+    tierName?: string;
   }) {
     if (status === "idle") {
       return <p className="status">Connect your wallet to earn contributor credit automatically.</p>;
@@ -202,17 +212,40 @@ export function ReportForm() {
 
     return (
       <p className="status status-success">
-        Linked wallet {walletAddress ?? "(unknown)"}. Credits: <strong>{credits ?? 0}</strong>
+        Linked wallet {walletAddress ?? "(unknown)"}. Tier {tierName ?? "Guest"}. Credits: <strong>{credits ?? 0}</strong>
       </p>
     );
   }
 
-  function ContributorSummary({ contributor }: { contributor: ContributorProfile }) {
+function ContributorSummary({
+    contributor,
+    accessStatus
+  }: {
+    contributor: ContributorProfile;
+    accessStatus?: AccessStatusResponse;
+  }) {
+    const tierName = accessStatus?.tier.displayName ?? "Guest Observer";
+    const nextTier = accessStatus?.nextTier;
+    const lifetimeCredits = contributor.lifetimeCredits;
+    const progress = contributor.tierProgress ?? 0;
+    const creditsToNext = nextTier ? Math.max(0, nextTier.minCredits - lifetimeCredits) : 0;
+
     return (
       <div className="status-card contributor-card">
         <p className="panel-label">Contributor Stats</p>
         <p className="metric">
-          Credits <strong>{contributor.creditsBalance}</strong>
+          Current tier <strong>{tierName}</strong>
+        </p>
+        <p className="status">
+          Balance <strong>{contributor.creditsBalance}</strong> · Lifetime {lifetimeCredits}
+        </p>
+        <div className="tier-meter" aria-label="Tier progress">
+          <span style={{ width: `${Math.min(100, Math.max(0, progress))}%` }} />
+        </div>
+        <p className="status">
+          {nextTier
+            ? `${creditsToNext} credits until ${nextTier.displayName}`
+            : "Advisor tier unlocked. Keep shipping intel."}
         </p>
         <p className="status">
           Reports submitted <strong>{contributor.contributionCount}</strong>
@@ -222,4 +255,64 @@ export function ReportForm() {
         ) : null}
       </div>
     );
+  }
+
+function CreditsLedger({
+    events,
+    isConnected
+  }: {
+    events: CreditEvent[];
+    isConnected: boolean;
+  }) {
+    if (!events.length) {
+      return (
+        <div className="status-card ledger-card">
+          <p className="panel-label">Credit Ledger</p>
+          <p className="status">
+            {isConnected
+              ? "Submit reports to populate your ledger events."
+              : "Connect to GIN to see contribution history."}
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="status-card ledger-card">
+        <p className="panel-label">Credit Ledger</p>
+        <ul className="ledger-list">
+          {events.slice(0, 8).map((event) => (
+            <li key={event.id}>
+              <div className="ledger-row">
+                <strong>{formatEventLabel(event.eventType)}</strong>
+                <span className={event.delta >= 0 ? "badge-positive" : "badge-negative"}>
+                  {event.delta >= 0 ? `+${event.delta}` : event.delta}
+                </span>
+              </div>
+              <p className="status-small">{new Date(event.createdAt).toLocaleString()}</p>
+              <p className="status-small">
+                Importance {event.importanceScore} · Usefulness {event.usefulnessScore}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+function formatEventLabel(eventType: CreditEvent["eventType"]) {
+    switch (eventType) {
+      case "report_confirmed":
+        return "Report confirmed";
+      case "report_disputed":
+        return "Report disputed";
+      case "world_data_contributed":
+        return "World data";
+      case "intel_purchased":
+        return "Intel purchase";
+      case "manual_adjustment":
+        return "Manual adjustment";
+      default:
+        return "Report submitted";
+    }
   }

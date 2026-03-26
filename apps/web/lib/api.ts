@@ -15,7 +15,9 @@ import {
   recommendationSchema,
   routeSummarySchema,
   sectorSummarySchema,
-  structuredIntelSnapshotSchema
+  structuredIntelSnapshotSchema,
+  accessStatusResponseSchema,
+  creditsLedgerResponseSchema
 } from "@gin/shared";
 
 type SectorResponse = { sectors?: unknown };
@@ -26,6 +28,8 @@ type RoutesResponse = { routes?: unknown };
 type FactionResponse = { factions?: unknown };
 type SnapshotResponse = { snapshot?: unknown };
 type ProfileConnectResponse = unknown;
+type AccessStatusPayload = unknown;
+type CreditsLedgerPayload = unknown;
 
 const serverApiBaseUrl = process.env.GIN_API_URL ?? process.env.NEXT_PUBLIC_GIN_API_URL ?? "http://localhost:4000";
 
@@ -156,11 +160,12 @@ export async function createStructuredSnapshot(payload: { publishArtifact?: bool
   return structuredIntelSnapshotSchema.parse(json.snapshot);
 }
 
-export async function submitReport(payload: CreateReportInput) {
+export async function submitReport(payload: CreateReportInput, auditWallet?: string) {
   const response = await fetch(`${getBrowserApiBaseUrl()}/api/reports`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      ...walletHeader(auditWallet)
     },
     body: JSON.stringify(payload)
   });
@@ -174,13 +179,14 @@ export async function submitReport(payload: CreateReportInput) {
   return createReportSchema.parse(json.report);
 }
 
-export async function connectProfile(walletAddress: string) {
+export async function connectProfile(walletAddress: string, auditWallet?: string) {
   const payload = profileConnectInputSchema.parse({ walletAddress });
 
   const response = await fetch(`${getBrowserApiBaseUrl()}/api/profiles/connect`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      ...walletHeader(auditWallet ?? walletAddress)
     },
     body: JSON.stringify(payload)
   });
@@ -194,13 +200,14 @@ export async function connectProfile(walletAddress: string) {
   return profileConnectResponseSchema.parse(json);
 }
 
-export async function publishArtifact(payload: PublishArtifactInput) {
+export async function publishArtifact(payload: PublishArtifactInput, auditWallet?: string) {
   const body = publishArtifactInputSchema.parse(payload);
 
   const response = await fetch(`${getBrowserApiBaseUrl()}/api/contracts/publish-artifact`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      ...walletHeader(auditWallet)
     },
     body: JSON.stringify(body)
   });
@@ -214,13 +221,14 @@ export async function publishArtifact(payload: PublishArtifactInput) {
   return publishArtifactResponseSchema.parse(json) as PublishArtifactResponse;
 }
 
-export async function awardCredits(payload: AwardCreditsRequest) {
+export async function awardCredits(payload: AwardCreditsRequest, auditWallet?: string) {
   const body = awardCreditsRequestSchema.parse(payload);
 
   const response = await fetch(`${getBrowserApiBaseUrl()}/api/contracts/award-credits`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      ...walletHeader(auditWallet)
     },
     body: JSON.stringify(body)
   });
@@ -234,6 +242,47 @@ export async function awardCredits(payload: AwardCreditsRequest) {
   return awardCreditsResponseSchema.parse(json) as AwardCreditsResponse;
 }
 
+export async function fetchAccessStatus(profileId: string, auditWallet?: string) {
+  const url = new URL(`${getBrowserApiBaseUrl()}/api/access/status`);
+  url.searchParams.set("profileId", profileId);
+
+  const response = await fetch(url.toString(), {
+    cache: "no-store",
+    headers: walletHeader(auditWallet)
+  });
+
+  if (!response.ok) {
+    const message = await extractError(response);
+    throw new Error(message);
+  }
+
+  const json = (await response.json()) as AccessStatusPayload;
+  return accessStatusResponseSchema.parse(json);
+}
+
+export async function fetchCreditsLedger(profileId: string, limit = 25, auditWallet?: string, cursor?: string) {
+  const url = new URL(`${getBrowserApiBaseUrl()}/api/credits/ledger`);
+  url.searchParams.set("profileId", profileId);
+  url.searchParams.set("limit", String(limit));
+  if (cursor) {
+    url.searchParams.set("cursor", cursor);
+  }
+
+  const response = await fetch(url.toString(), {
+    cache: "no-store",
+    headers: walletHeader(auditWallet)
+  });
+
+  if (!response.ok) {
+    const message = await extractError(response);
+    throw new Error(message);
+  }
+
+  const json = (await response.json()) as CreditsLedgerPayload;
+  const parsed = creditsLedgerResponseSchema.parse(json);
+  return parsed.events;
+}
+
 async function extractError(response: Response) {
   try {
     const data = (await response.json()) as { error?: string };
@@ -241,4 +290,8 @@ async function extractError(response: Response) {
   } catch (error) {
     return `Request failed (${response.status})`;
   }
+}
+
+function walletHeader(walletAddress?: string) {
+  return walletAddress ? { "X-Wallet-Address": walletAddress } : {};
 }

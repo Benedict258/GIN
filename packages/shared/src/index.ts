@@ -124,6 +124,8 @@ export const profileSchema = z.object({
 export const contributorProfileSchema = z.object({
   profileId: z.string().min(1),
   creditsBalance: z.number().int(),
+  lifetimeCredits: z.number().int(),
+  tierProgress: z.number().int(),
   reputationScore: z.number().int(),
   contributionCount: z.number().int(),
   lastContributionAt: z.string().datetime().nullable()
@@ -132,6 +134,88 @@ export const contributorProfileSchema = z.object({
 export const profileContextSchema = z.object({
   profile: profileSchema,
   contributor: contributorProfileSchema
+});
+
+export const accessTierSchema = z.object({
+  tierId: z.string().min(1),
+  displayName: z.string().min(1),
+  minCredits: z.number().int().nonnegative(),
+  description: z.string().nullish(),
+  privileges: z.record(z.string(), z.unknown()).default({}),
+  isDefault: z.boolean()
+});
+
+export const profileAccessGrantSchema = z.object({
+  id: z.string().uuid(),
+  profileId: z.string().uuid(),
+  tierId: z.string().min(1),
+  grantedBy: z.string().nullish(),
+  grantedAt: z.string().datetime(),
+  expiresAt: z.string().datetime().nullable(),
+  metadata: z.record(z.string(), z.unknown()).default({})
+});
+
+export const contributionActionSchema = z.object({
+  actionKey: z.string().min(1),
+  displayName: z.string().min(1),
+  description: z.string().nullish(),
+  baseReward: z.number().int(),
+  importanceWeight: z.number().int().min(1).max(100),
+  usefulnessWeight: z.number().int().min(1).max(100),
+  metadata: z.record(z.string(), z.unknown()).default({}),
+  isActive: z.boolean()
+});
+
+export const creditEventTypeSchema = z.enum([
+  "report_submitted",
+  "report_confirmed",
+  "report_disputed",
+  "world_data_contributed",
+  "intel_purchased",
+  "manual_adjustment"
+]);
+
+export const creditEventSchema = z.object({
+  id: z.string().uuid(),
+  profileId: z.string().uuid(),
+  eventType: creditEventTypeSchema,
+  actionKey: z.string().nullish(),
+  delta: z.number().int(),
+  importanceScore: z.number().int().min(1).max(100),
+  usefulnessScore: z.number().int().min(1).max(100),
+  verificationOutcome: z.string().nullish(),
+  balanceAfter: z.number().int().nullable(),
+  accessTierSnapshot: z.string().nullish(),
+  metadata: z.record(z.string(), z.unknown()).default({}),
+  createdAt: z.string().datetime()
+});
+
+export const awardContributionCreditsSchema = z.object({
+  profileId: z.string().uuid(),
+  actionKey: creditEventTypeSchema,
+  importanceScore: z.number().int().min(1).max(100).default(50),
+  usefulnessScore: z.number().int().min(1).max(100).default(50),
+  verificationOutcome: z.string().nullish(),
+  metadata: z.record(z.string(), z.unknown()).default({}),
+  creditsOverride: z.number().int().optional(),
+  countsTowardsContribution: z.boolean().default(true)
+});
+
+export const awardContributionCreditsResponseSchema = z.object({
+  profile: profileSchema,
+  contributor: contributorProfileSchema,
+  event: creditEventSchema
+});
+
+export const creditsLedgerResponseSchema = z.object({
+  events: z.array(creditEventSchema)
+});
+
+export const accessStatusResponseSchema = z.object({
+  profile: profileSchema,
+  contributor: contributorProfileSchema,
+  tier: accessTierSchema,
+  nextTier: accessTierSchema.nullish()
 });
 
 export const profileConnectInputSchema = z.object({
@@ -196,3 +280,11 @@ export type AwardCreditsRequest = z.infer<typeof awardCreditsRequestSchema>;
 export type AwardCreditsResponse = z.infer<typeof awardCreditsResponseSchema>;
 export type ConfidenceComponents = z.infer<typeof confidenceComponentsSchema>;
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
+export type AccessTier = z.infer<typeof accessTierSchema>;
+export type ProfileAccessGrant = z.infer<typeof profileAccessGrantSchema>;
+export type ContributionAction = z.infer<typeof contributionActionSchema>;
+export type CreditEvent = z.infer<typeof creditEventSchema>;
+export type AwardContributionCreditsInput = z.infer<typeof awardContributionCreditsSchema>;
+export type AwardContributionCreditsResponse = z.infer<typeof awardContributionCreditsResponseSchema>;
+export type CreditsLedgerResponse = z.infer<typeof creditsLedgerResponseSchema>;
+export type AccessStatusResponse = z.infer<typeof accessStatusResponseSchema>;

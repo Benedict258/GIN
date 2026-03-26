@@ -7,6 +7,12 @@ import { SectorVerificationPanel } from "../components/sector-verification-panel
 import { RouteSafetyPanel } from "../components/route-safety-panel";
 import { FactionIntelPanel } from "../components/faction-intel-panel";
 import { SnapshotPanel } from "../components/snapshot-panel";
+import { PackAccessPanel } from "../components/pack-access-panel";
+import { CreditsPanel } from "../components/credits-panel";
+import { PanelGate } from "../components/panel-gate";
+import { LockedPanel } from "../components/locked-panel";
+import { DemoStoryPanel } from "../components/demo-story-panel";
+import { FrontierContextBadge } from "../components/frontier-context-badge";
 import {
   createStructuredSnapshot,
   fetchFactionIntel,
@@ -84,12 +90,21 @@ export default async function HomePage() {
           GIN turns raw ecosystem signals into verified intelligence, contributor
           rewards, and grounded AI guidance for EVE Frontier players.
         </p>
+        <Suspense fallback={<div className="frontier-badge">Linking to EVE Frontier…</div>}>
+          <FrontierContextBadge />
+        </Suspense>
       </section>
 
       <section className="grid">
         <Suspense fallback={<article className="panel">Loading dApp kit...</article>}>
           <DAppKitSlot />
         </Suspense>
+
+        <PackAccessPanel />
+
+        <CreditsPanel />
+
+        <DemoStoryPanel />
 
         <article className="panel">
           <p className="panel-label">Live Recommendation</p>
@@ -114,11 +129,26 @@ export default async function HomePage() {
 
         <SectorVerificationPanel sectors={sectors} />
 
-        <RouteSafetyPanel routes={routes} recomputeAction={refreshRoutesAction} />
+        <PanelGate
+          panelKey="routes"
+          fallback={<LockedPanel title="Corridor Intel" description="Scout tier unlocks live route safety data." />}
+        >
+          <RouteSafetyPanel routes={routes} recomputeAction={refreshRoutesAction} />
+        </PanelGate>
 
-        <FactionIntelPanel factions={factions} recomputeAction={refreshFactionsAction} />
+        <PanelGate
+          panelKey="factions"
+          fallback={<LockedPanel title="Pack Intelligence" description="Earn Scout access to analyze faction intel." />}
+        >
+          <FactionIntelPanel factions={factions} recomputeAction={refreshFactionsAction} />
+        </PanelGate>
 
-        <SnapshotPanel snapshot={snapshot} onCreateSnapshot={createSnapshotAction} />
+        <PanelGate
+          panelKey="snapshots"
+          fallback={<LockedPanel title="Advisor Snapshots" description="Advisor tier holders can mint AI-ready snapshots." />}
+        >
+          <SnapshotPanel snapshot={snapshot} onCreateSnapshot={createSnapshotAction} />
+        </PanelGate>
 
         <article className="panel panel-wide">
           <p className="panel-label">Sector Signals</p>

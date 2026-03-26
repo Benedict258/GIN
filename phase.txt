@@ -1,7 +1,20 @@
-Phase 5 Plan (Intelligence Engine)
+Phase 9 (Demo Polish & Submission) plan is ready—tying everything to the Frontier dApp Kit experience:
 
-5.1 Sector Intelligence Refresh: Recompute sector_summaries from trusted reports instead of static seed data. Use trust metadata (confidence components, verification state, dedupe clusters) to update threat, opportunity, and confidence scores per sector. Persist via cron/API so Supabase stays the single source.
-5.2 Route Safety Model: Introduce a route_summaries table (origin, destination, corridor state) fed by nearby sector stats + fresh report clusters. Compute safe, volatile, hostile flags plus reasoning JSON used by UI and AI advisor.
-5.3 Pack/Faction Intel View: Add optional faction/pack grouping on reports so we can aggregate verified intelligence per faction. Expose a /api/intel/packs endpoint that returns the top observations and confidence per faction for future in-assembly sharing.
-5.4 Advisor-Ready Output: Standardize a structured_intel payload combining sectors, routes, and pack intel. Store snapshots (for Walrus later) and use them in the Next.js UI so Phase 6’s AI advisor can consume the same schema.
-5.5 Automation Hooks: Define lightweight jobs/endpoints (POST /api/intel/recompute) that trigger recomputation, ensuring we can run it locally, via Supabase cron, or inside the assembly runtime.
+Demo-Ready UX Pass
+
+Add loading/skeleton states and “connected via EVE Frontier” badges so every panel looks intentional inside the in-game shell.
+Highlight wallet/assembly context from the dApp Kit across the hero + credits sections (e.g., “Logged in as <wallet> on tenant <assembly>”).
+Layer in subtle animations (panel fades, timeline reveal) that match the existing cosmic theme without harming iframe performance.
+Frontier Resource Integration
+
+Feed the dApp Kit’s smart-object data into more panels (e.g., auto-filter reports by assembly if that metadata exists).
+Surface Frontier resource links: a CTA to open the official assembly browser plus the Sui explorer proofs we already show.
+Submission Package
+
+Expand the demo storyline into a narrated script with timestamps and callouts to the UI components (credits panel, locked gates, Walrus proofs).
+Write a README/demo guide covering setup, env toggles (GIN_DISABLE_ONCHAIN, etc.), and the “Ikora Corridor” walkthrough.
+Capture screenshots/mockups for the dashboard hero + credits panel to include in the submission deck.
+Optional Extras (time permitting)
+
+Record automated Playwright flows for the full demo path (connect wallet → submit report → see credits → open gated panel).
+Build a lightweight toast/notification system for Sui/Walrus fallback states, hooked into the dApp Kit connection status.

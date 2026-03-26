@@ -4,24 +4,30 @@ import { z } from "zod";
 import {
   awardCreditsRequestSchema,
   awardCreditsResponseSchema,
+  awardContributionCreditsSchema,
+  awardContributionCreditsResponseSchema,
+  creditsLedgerResponseSchema,
   contributorProfileSchema,
   createReportSchema,
   createReportInputSchema,
+  creditEventSchema,
   factionIntelSchema,
   healthResponseSchema,
   profileConnectInputSchema,
   profileConnectResponseSchema,
   profileSchema,
+  accessTierSchema,
   publishArtifactInputSchema,
   publishArtifactResponseSchema,
   recommendationSchema,
   routeSummarySchema,
   sectorSummarySchema,
   structuredIntelSnapshotSchema,
+  accessStatusResponseSchema,
   walrusArtifactContentSchema
 } from "@gin/shared";
 import type { CreateReportInput, PublishArtifactInput, Report, WalrusArtifactContent } from "@gin/shared";
-import type { FastifyBaseLogger } from "fastify";
+import type { FastifyBaseLogger, FastifyRequest } from "fastify";
 import { supabase } from "./lib/supabase.js";
 import type {
   RecommendationRow,
@@ -32,7 +38,10 @@ import type {
   StructuredIntelSnapshotRow,
   Json,
   ProfileRow,
-  ContributorProfileRow
+  ContributorProfileRow,
+  CreditEventRow,
+  AccessTierRow,
+  ContributionActionRow
 } from "./lib/database.types.js";
 import { awardCreditsOnChain, deriveReportDigest, isSuiConfigured, publishArtifactOnChain } from "./lib/contracts.js";
 import { isWalrusConfigured, pinWalrusArtifact } from "./lib/walrus.js";
@@ -49,6 +58,9 @@ const DEFAULT_RECOMMENDATION_LIMIT = 10;
 const DEFAULT_REPORT_LIMIT = 20;
 const DEFAULT_ROUTE_LIMIT = 10;
 const DEFAULT_FACTION_LIMIT = 10;
+const SERVICE_VERSION = process.env.GIN_DEPLOY_VERSION ?? process.env.npm_package_version ?? "dev";
+const DISABLE_ONCHAIN_CREDITS = process.env.GIN_DISABLE_ONCHAIN === "true";
+const DISABLE_WALRUS = process.env.GIN_DISABLE_WALRUS === "true";
 
 const snapshotPayloadSchema = z.object({
   publishArtifact: z.boolean().optional(),
@@ -62,6 +74,16 @@ const automationRequestSchema = snapshotPayloadSchema
     skipSnapshot: z.boolean().optional()
   })
   .default({ publishArtifact: false, confidenceScore: 75, skipSnapshot: false });
+
+const creditsLedgerQuerySchema = z.object({
+  profileId: z.string().uuid(),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  cursor: z.string().datetime().optional()
+});
+
+const accessStatusQuerySchema = z.object({
+  profileId: z.string().uuid()
+});
 
 export function buildApp() {
   const app = Fastify({
@@ -79,6 +101,17 @@ export function buildApp() {
       timestamp: new Date().toISOString()
     })
   );
+
+  app.get("/status", async () => ({
+    status: "ok",
+    service: "gin-api",
+    version: SERVICE_VERSION,
+    suiEnabled: isSuiConfigured() && !DISABLE_ONCHAIN_CREDITS,
+    walrusEnabled: isWalrusConfigured() && !DISABLE_WALRUS,
+    onChainCreditsDisabled: DISABLE_ONCHAIN_CREDITS,
+    walrusDisabled: DISABLE_WALRUS,
+    timestamp: new Date().toISOString()
+  }));
 
   app.get("/api/intel/sectors", async (request, reply) => {
     try {
@@ -230,6 +263,10 @@ export function buildApp() {
 
   app.post("/api/reports", async (request, reply) => {
     const payload = createReportInputSchema.parse(request.body);
+    const auditWallet = resolveAuditWallet(request);
+    if (auditWallet) {
+      request.log.info({ auditWallet }, "Report submission tagged with wallet");
+    }
 
     try {
       const report = await saveReport(payload);
@@ -245,6 +282,10 @@ export function buildApp() {
 
   app.post("/api/profiles/connect", async (request, reply) => {
     const payload = profileConnectInputSchema.parse(request.body);
+    const auditWallet = resolveAuditWallet(request);
+    if (auditWallet) {
+      request.log.info({ auditWallet }, "Profile connect request");
+    }
 
     try {
       const context = await connectProfile(payload.walletAddress);
@@ -258,13 +299,17 @@ export function buildApp() {
 
   app.post("/api/contracts/publish-artifact", async (request, reply) => {
     const payload = publishArtifactInputSchema.parse(request.body);
+    const auditWallet = resolveAuditWallet(request);
+    if (auditWallet) {
+      request.log.info({ auditWallet }, "Publish artifact request");
+    }
 
-    if (!isWalrusConfigured()) {
+    if (!isWalrusConfigured() || DISABLE_WALRUS) {
       reply.code(503);
       return { error: "Walrus integration is disabled" };
     }
 
-    if (!isSuiConfigured()) {
+    if (!isSuiConfigured() || DISABLE_ONCHAIN_CREDITS) {
       reply.code(503);
       return { error: "Sui integration is not configured" };
     }
@@ -299,6 +344,10 @@ export function buildApp() {
 
   app.post("/api/contracts/award-credits", async (request, reply) => {
     const payload = awardCreditsRequestSchema.parse(request.body);
+    const auditWallet = resolveAuditWallet(request);
+    if (auditWallet) {
+      request.log.info({ auditWallet }, "On-chain credits request");
+    }
 
     if (!isSuiConfigured()) {
       reply.code(503);
@@ -335,6 +384,61 @@ export function buildApp() {
       request.log.error({ err: error }, "Failed to award on-chain credits");
       reply.code(500);
       return { error: "Failed to award credits" };
+    }
+  });
+
+  app.post("/api/credits/award", async (request, reply) => {
+    const payload = awardContributionCreditsSchema.parse(request.body);
+    const auditWallet = resolveAuditWallet(request);
+    if (auditWallet) {
+      request.log.info({ auditWallet }, "Award credits API call");
+    }
+
+    try {
+      const result = await awardCreditsForAction(payload, request.log);
+      return awardContributionCreditsResponseSchema.parse({
+        profile: mapProfileRow(result.profile),
+        contributor: mapContributorRow(result.contributor),
+        event: mapCreditEventRow(result.event)
+      });
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to award contribution credits");
+      reply.code(500);
+      return { error: "Failed to award contribution credits" };
+    }
+  });
+
+  app.get("/api/credits/ledger", async (request, reply) => {
+    const query = creditsLedgerQuerySchema.parse(request.query);
+    const auditWallet = resolveAuditWallet(request);
+    if (auditWallet) {
+      request.log.debug({ auditWallet, profileId: query.profileId }, "Ledger query with wallet context");
+    }
+
+    try {
+      const events = await fetchCreditsLedger(query.profileId, query.limit, query.cursor);
+      return creditsLedgerResponseSchema.parse({ events: events.map(mapCreditEventRow) });
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to load credits ledger");
+      reply.code(500);
+      return { error: "Failed to load credit events" };
+    }
+  });
+
+  app.get("/api/access/status", async (request, reply) => {
+    const query = accessStatusQuerySchema.parse(request.query);
+    const auditWallet = resolveAuditWallet(request);
+    if (auditWallet) {
+      request.log.debug({ auditWallet, profileId: query.profileId }, "Access status query with wallet context");
+    }
+
+    try {
+      const status = await fetchAccessStatus(query.profileId);
+      return accessStatusResponseSchema.parse(status);
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to load access status");
+      reply.code(500);
+      return { error: "Failed to load access status" };
     }
   });
 
@@ -648,37 +752,6 @@ function ensureStringArray(value: Json | null): string[] {
 }
 
 async function issueContributorCredits(report: Report, payload: CreateReportInput, logger: FastifyBaseLogger) {
-  const credits = calculateCreditReward(payload);
-  const contributorRow = await ensureContributorProfile(report.reporterId);
-  const nowIso = new Date().toISOString();
-
-  const { data: updatedContributor, error: updateError } = await supabase
-    .from("contributor_profiles")
-    .update({
-      credits_balance: contributorRow.credits_balance + credits,
-      contribution_count: contributorRow.contribution_count + 1,
-      last_contribution_at: nowIso
-    })
-    .eq("profile_id", report.reporterId)
-    .select("*")
-    .single();
-
-  if (updateError || !updatedContributor) {
-    throw new Error(updateError?.message ?? "Unable to update contributor stats");
-  }
-
-  await recordCreditEvent(report, credits, payload);
-  await maybeAwardCreditsOnChain(report, credits, logger);
-
-  return updatedContributor as ContributorProfileRow;
-}
-
-function calculateCreditReward(payload: CreateReportInput) {
-  const weighted = payload.importanceScore * 0.6 + payload.intensity * 0.4;
-  return Math.max(5, Math.round(weighted / 5));
-}
-
-async function recordCreditEvent(report: Report, credits: number, payload: CreateReportInput) {
   const metadata = {
     report_id: report.id,
     signal_type: payload.signalType,
@@ -686,21 +759,25 @@ async function recordCreditEvent(report: Report, credits: number, payload: Creat
     source: payload.source
   } satisfies Record<string, string>;
 
-  const { error } = await supabase.from("credit_events").insert({
-    profile_id: report.reporterId,
-    event_type: "report_submitted",
-    delta: credits,
-    importance_score: payload.importanceScore,
-    metadata
-  });
+  const result = await awardCreditsForAction(
+    {
+      profileId: report.reporterId,
+      actionKey: "report_submitted",
+      importanceScore: payload.importanceScore,
+      usefulnessScore: payload.intensity,
+      metadata,
+      countsTowardsContribution: true
+    },
+    logger
+  );
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  await maybeAwardCreditsOnChain(report, result.event.delta, logger);
+
+  return result.contributor;
 }
 
 async function maybeAwardCreditsOnChain(report: Report, credits: number, logger: FastifyBaseLogger) {
-  if (!isSuiConfigured()) {
+  if (DISABLE_ONCHAIN_CREDITS || !isSuiConfigured()) {
     return;
   }
 
@@ -723,6 +800,267 @@ async function maybeAwardCreditsOnChain(report: Report, credits: number, logger:
   } catch (error) {
     logger.warn({ err: error }, "On-chain credit issuance failed");
   }
+}
+
+type AwardCreditsResult = {
+  profile: ProfileRow;
+  contributor: ContributorProfileRow;
+  event: CreditEventRow;
+  tier: AccessTierRow;
+  nextTier: AccessTierRow | null;
+};
+
+async function awardCreditsForAction(
+  payload: z.infer<typeof awardContributionCreditsSchema>,
+  logger: FastifyBaseLogger
+): Promise<AwardCreditsResult> {
+  const actionRow = await fetchContributionAction(payload.actionKey);
+  const profileRow = await fetchProfileById(payload.profileId);
+  const contributorRow = await ensureContributorProfile(payload.profileId);
+  const tiers = await fetchAccessTiers();
+  const nowIso = new Date().toISOString();
+
+  const delta = payload.creditsOverride ?? calculateActionCredits(actionRow, payload.importanceScore, payload.usefulnessScore);
+  const balanceAfter = contributorRow.credits_balance + delta;
+  const lifetimeAfter = contributorRow.lifetime_credits + delta;
+  const tierState = determineTierState(lifetimeAfter, tiers, profileRow.access_tier);
+  const tierProgress = calculateTierProgress(lifetimeAfter, tierState.currentTier, tierState.nextTier);
+
+  const contributorUpdate = {
+    credits_balance: balanceAfter,
+    lifetime_credits: lifetimeAfter,
+    tier_progress: tierProgress,
+    contribution_count: payload.countsTowardsContribution
+      ? contributorRow.contribution_count + 1
+      : contributorRow.contribution_count,
+    last_contribution_at: payload.countsTowardsContribution ? nowIso : contributorRow.last_contribution_at
+  } satisfies Partial<ContributorProfileRow>;
+
+  const { data: updatedContributor, error: contributorError } = await supabase
+    .from("contributor_profiles")
+    .update(contributorUpdate)
+    .eq("profile_id", payload.profileId)
+    .select("*")
+    .single();
+
+  if (contributorError || !updatedContributor) {
+    throw new Error(contributorError?.message ?? "Unable to update contributor profile");
+  }
+
+  let updatedProfileRow = profileRow;
+  if (tierState.currentTier.tier_id !== profileRow.access_tier) {
+    const { data: profileUpdate, error: profileError } = await supabase
+      .from("profiles")
+      .update({ access_tier: tierState.currentTier.tier_id })
+      .eq("id", payload.profileId)
+      .select("*")
+      .single();
+
+    if (profileError || !profileUpdate) {
+      throw new Error(profileError?.message ?? "Unable to update profile tier");
+    }
+
+    updatedProfileRow = profileUpdate as ProfileRow;
+  }
+
+  const eventRow = await insertCreditEvent({
+    profileId: payload.profileId,
+    actionKey: payload.actionKey,
+    delta,
+    importanceScore: payload.importanceScore,
+    usefulnessScore: payload.usefulnessScore,
+    verificationOutcome: payload.verificationOutcome ?? null,
+    balanceAfter,
+    accessTierSnapshot: tierState.currentTier.tier_id,
+    metadata: payload.metadata ?? {},
+    eventType: payload.actionKey
+  });
+
+  logger.info(
+    {
+      profileId: payload.profileId,
+      actionKey: payload.actionKey,
+      delta,
+      tier: tierState.currentTier.tier_id
+    },
+    "Awarded contribution credits"
+  );
+
+  return {
+    profile: updatedProfileRow,
+    contributor: updatedContributor as ContributorProfileRow,
+    event: eventRow,
+    tier: tierState.currentTier,
+    nextTier: tierState.nextTier
+  };
+}
+
+function calculateActionCredits(action: ContributionActionRow, importanceScore: number, usefulnessScore: number) {
+  const normalizedImportance = Math.max(0, Math.min(100, importanceScore)) / 100;
+  const normalizedUsefulness = Math.max(0, Math.min(100, usefulnessScore)) / 100;
+  const weightSum = action.importance_weight + action.usefulness_weight;
+  const weightedContribution =
+    normalizedImportance * action.importance_weight + normalizedUsefulness * action.usefulness_weight;
+  const multiplier = weightSum === 0 ? 1 : weightedContribution / weightSum;
+  const credits = action.base_reward * (0.5 + multiplier);
+  return Math.max(1, Math.round(credits));
+}
+
+async function fetchContributionAction(actionKey: string) {
+  const { data, error } = await supabase
+    .from("contribution_actions")
+    .select("*")
+    .eq("action_key", actionKey)
+    .eq("is_active", true)
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message ?? `Contribution action ${actionKey} not found`);
+  }
+
+  return data as ContributionActionRow;
+}
+
+async function fetchAccessTiers() {
+  const { data, error } = await supabase
+    .from("access_tiers")
+    .select("*")
+    .order("min_credits", { ascending: true });
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "Unable to load access tiers");
+  }
+
+  return data as AccessTierRow[];
+}
+
+function determineTierState(lifetimeCredits: number, tiers: AccessTierRow[], fallbackTierId: string) {
+  if (tiers.length === 0) {
+    throw new Error("No access tiers configured");
+  }
+
+  const sorted = [...tiers].sort((a, b) => a.min_credits - b.min_credits);
+  let currentTier = sorted.find((tier) => tier.tier_id === fallbackTierId) ?? sorted[0];
+
+  for (const tier of sorted) {
+    if (lifetimeCredits >= tier.min_credits) {
+      currentTier = tier;
+    } else {
+      break;
+    }
+  }
+
+  const currentIndex = sorted.findIndex((tier) => tier.tier_id === currentTier.tier_id);
+  const nextTier = currentIndex >= 0 && currentIndex + 1 < sorted.length ? sorted[currentIndex + 1] : null;
+
+  return { currentTier, nextTier };
+}
+
+function calculateTierProgress(lifetimeCredits: number, currentTier: AccessTierRow, nextTier: AccessTierRow | null) {
+  if (!nextTier) {
+    return 100;
+  }
+
+  const span = Math.max(1, nextTier.min_credits - currentTier.min_credits);
+  const progress = ((lifetimeCredits - currentTier.min_credits) / span) * 100;
+  return Math.max(0, Math.min(100, Math.round(progress)));
+}
+
+async function insertCreditEvent(params: {
+  profileId: string;
+  actionKey: CreditEventRow["event_type"];
+  eventType: CreditEventRow["event_type"];
+  delta: number;
+  importanceScore: number;
+  usefulnessScore: number;
+  verificationOutcome: string | null;
+  balanceAfter: number;
+  accessTierSnapshot: string;
+  metadata: Record<string, unknown>;
+}) {
+  const { data, error } = await supabase
+    .from("credit_events")
+    .insert({
+      profile_id: params.profileId,
+      event_type: params.eventType,
+      action_key: params.actionKey,
+      delta: params.delta,
+      importance_score: params.importanceScore,
+      usefulness_score: params.usefulnessScore,
+      verification_outcome: params.verificationOutcome,
+      balance_after: params.balanceAfter,
+      access_tier_snapshot: params.accessTierSnapshot,
+      metadata: params.metadata
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "Unable to record credit event");
+  }
+
+  return data as CreditEventRow;
+}
+
+async function fetchCreditsLedger(profileId: string, limit: number, cursor?: string) {
+  let query = supabase
+    .from("credit_events")
+    .select("*")
+    .eq("profile_id", profileId);
+
+  if (cursor) {
+    query = query.lt("created_at", cursor);
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: false }).limit(limit);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []) as CreditEventRow[];
+}
+
+async function fetchAccessStatus(profileId: string) {
+  const profileRow = await fetchProfileById(profileId);
+  const contributorRow = await ensureContributorProfile(profileId);
+  const tiers = await fetchAccessTiers();
+  const tierState = determineTierState(contributorRow.lifetime_credits, tiers, profileRow.access_tier);
+
+  return {
+    profile: mapProfileRow(profileRow),
+    contributor: mapContributorRow(contributorRow),
+    tier: mapAccessTierRow(tierState.currentTier),
+    nextTier: tierState.nextTier ? mapAccessTierRow(tierState.nextTier) : null
+  };
+}
+
+function mapCreditEventRow(row: CreditEventRow) {
+  return creditEventSchema.parse({
+    id: row.id,
+    profileId: row.profile_id,
+    eventType: row.event_type,
+    actionKey: row.action_key,
+    delta: row.delta,
+    importanceScore: row.importance_score,
+    usefulnessScore: row.usefulness_score,
+    verificationOutcome: row.verification_outcome ?? undefined,
+    balanceAfter: row.balance_after,
+    accessTierSnapshot: row.access_tier_snapshot ?? undefined,
+    metadata: (row.metadata as Record<string, unknown> | null) ?? {},
+    createdAt: row.created_at
+  });
+}
+
+function mapAccessTierRow(row: AccessTierRow) {
+  return accessTierSchema.parse({
+    tierId: row.tier_id,
+    displayName: row.display_name,
+    minCredits: row.min_credits,
+    description: row.description ?? undefined,
+    privileges: (row.privileges as Record<string, unknown> | null) ?? {},
+    isDefault: row.is_default
+  });
 }
 
 async function fetchProfileById(profileId: string) {
@@ -845,6 +1183,8 @@ function mapContributorRow(row: ContributorProfileRow) {
   return contributorProfileSchema.parse({
     profileId: row.profile_id,
     creditsBalance: row.credits_balance,
+     lifetimeCredits: row.lifetime_credits,
+     tierProgress: row.tier_progress,
     reputationScore: row.reputation_score,
     contributionCount: row.contribution_count,
     lastContributionAt: row.last_contribution_at
@@ -862,4 +1202,18 @@ function asRecord(value: Json | null) {
   }
 
   return value as Record<string, unknown>;
+}
+
+function resolveAuditWallet(request: FastifyRequest) {
+  const header = request.headers["x-wallet-address"];
+
+  if (typeof header === "string" && header.length) {
+    return header;
+  }
+
+  if (Array.isArray(header) && header.length) {
+    return header[0];
+  }
+
+  return undefined;
 }
