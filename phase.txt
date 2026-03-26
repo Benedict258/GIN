@@ -1,20 +1,51 @@
-Phase 9 (Demo Polish & Submission) plan is ready—tying everything to the Frontier dApp Kit experience:
+Absolutely—we’re on the same page. Here’s the tight technical playbook you can hand to Copilot/your dev team so it knows exactly what to wire up next:
 
-Demo-Ready UX Pass
+Mint / Obtain Live Assembly ID
 
-Add loading/skeleton states and “connected via EVE Frontier” badges so every panel looks intentional inside the in-game shell.
-Highlight wallet/assembly context from the dApp Kit across the hero + credits sections (e.g., “Logged in as <wallet> on tenant <assembly>”).
-Layer in subtle animations (panel fades, timeline reveal) that match the existing cosmic theme without harming iframe performance.
-Frontier Resource Integration
+Coordinate with CCP Frontier tooling or hackathon contact to mint a GIN assembly smart object.
+Copy the resulting Sui object ID and tenant slug into .env:
+Verify the dashboard exits “locked” mode once this ID is present or passed via ?itemId=.
+Player Consent Flow
 
-Feed the dApp Kit’s smart-object data into more panels (e.g., auto-filter reports by assembly if that metadata exists).
-Surface Frontier resource links: a CTA to open the official assembly browser plus the Sui explorer proofs we already show.
-Submission Package
+Implement an in-game “Connect GIN” action that has the player sign a Move transaction.
+Contract stores {player_address, assembly_id, consent_scope} so telemetry access is auditable.
+Supabase Schema Expansion
 
-Expand the demo storyline into a narrated script with timestamps and callouts to the UI components (credits panel, locked gates, Walrus proofs).
-Write a README/demo guide covering setup, env toggles (GIN_DISABLE_ONCHAIN, etc.), and the “Ikora Corridor” walkthrough.
-Capture screenshots/mockups for the dashboard hero + credits panel to include in the submission deck.
-Optional Extras (time permitting)
+Add tables like telemetry_events, guidance_actions, threat_signals, resource_snapshots, assembly_sessions.
+Include indexes on assembly_id, player_id, event_type, timestamp for fast querying.
+Telemetry Ingest + Rules Engine (Fastify)
 
-Record automated Playwright flows for the full demo path (connect wallet → submit report → see credits → open gated panel).
-Build a lightweight toast/notification system for Sui/Walrus fallback states, hooked into the dApp Kit connection status.
+Create a worker/API endpoint that listens for Frontier/Sui events (movement, inventory, threats).
+Normalize payloads into Supabase.
+Build a rules module that evaluates conditions (fuel, threat proximity, resource deficits) and emits guidance objects.
+Real-Time Delivery
+
+Add a WebSocket (or Supabase realtime channel) from the Fastify API to the web client.
+React Query hooks subscribe to guidance streams; panels update immediately without refresh.
+In-Game Feedback Loop
+
+Use CCP’s HUD/notification hooks (or a mock overlay if not exposed) to surface the same guidance inside Frontier.
+Ensure every guidance action is persisted so both HUD and dashboard read from the same source of truth.
+Once step 1 is unblocked, we can start committing schema migrations and API endpoints right away. Let me know when you have the assembly ID or if you’d like me to scaffold the Supabase migrations/rules engine next. - Verify the dashboard exits “locked” mode once this ID is present or passed via ?itemId=.
+
+Player Consent Flow
+
+Implement an in-game “Connect GIN” action that has the player sign a Move transaction.
+Contract stores {player_address, assembly_id, consent_scope} so telemetry access is auditable.
+Supabase Schema Expansion
+
+Add tables like telemetry_events, guidance_actions, threat_signals, resource_snapshots, assembly_sessions.
+Include indexes on assembly_id, player_id, event_type, timestamp for fast querying.
+Telemetry Ingest + Rules Engine (Fastify)
+
+Create a worker/API endpoint that listens for Frontier/Sui events (movement, inventory, threats).
+Normalize payloads into Supabase.
+Build a rules module that evaluates conditions (fuel, threat proximity, resource deficits) and emits guidance objects.
+Real-Time Delivery
+
+Add a WebSocket (or Supabase realtime channel) from the Fastify API to the web client.
+React Query hooks subscribe to guidance streams; panels update immediately without refresh.
+In-Game Feedback Loop
+
+Use CCP’s HUD/notification hooks (or a mock overlay if not exposed) to surface the same guidance inside Frontier.
+Ensure every guidance action is persisted so both HUD and dashboard read from the same source of truth.

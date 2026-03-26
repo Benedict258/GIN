@@ -4,8 +4,8 @@ import { useConnection, useSmartObject } from "@evefrontier/dapp-kit";
 
 export function FrontierContextBadge() {
   const { isConnected, walletAddress, handleConnect } = useConnection();
-  const { assembly, loading } = useSmartObject();
-  const tenant = assembly?.tenant ?? process.env.NEXT_PUBLIC_EVE_FRONTIER_TENANT ?? "utopia";
+  const { tenant, assembly, loading } = useSmartObject();
+  const resolvedTenant = tenant?.trim() || process.env.NEXT_PUBLIC_EVE_FRONTIER_TENANT || "utopia";
   const assemblyName = assembly?.name ?? "Awaiting assembly";
   const walletLabel = walletAddress ? shorten(walletAddress) : "No wallet linked";
 
@@ -13,7 +13,7 @@ export function FrontierContextBadge() {
     <div className="frontier-badge" aria-live="polite">
       <div>
         <span>Connected to Frontier</span>
-        <strong>{tenant}</strong>
+        <strong>{resolvedTenant}</strong>
       </div>
       <div>
         <span>Assembly</span>

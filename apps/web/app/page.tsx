@@ -85,7 +85,7 @@ export default async function HomePage() {
     <main className="page-shell">
       <section className="hero">
         <p className="eyebrow">Galactic Intelligence Network</p>
-        <h1>Build the intelligence layer before the galaxy builds over you.</h1>
+        <h1 data-testid="hero-heading">Build the intelligence layer before the galaxy builds over you.</h1>
         <p className="lede">
           GIN turns raw ecosystem signals into verified intelligence, contributor
           rewards, and grounded AI guidance for EVE Frontier players.
@@ -131,21 +131,39 @@ export default async function HomePage() {
 
         <PanelGate
           panelKey="routes"
-          fallback={<LockedPanel title="Corridor Intel" description="Scout tier unlocks live route safety data." />}
+          fallback={
+            <LockedPanel
+              title="Corridor Intel"
+              description="Scout tier unlocks live route safety data."
+              testId="locked-panel-routes"
+            />
+          }
         >
           <RouteSafetyPanel routes={routes} recomputeAction={refreshRoutesAction} />
         </PanelGate>
 
         <PanelGate
           panelKey="factions"
-          fallback={<LockedPanel title="Pack Intelligence" description="Earn Scout access to analyze faction intel." />}
+          fallback={
+            <LockedPanel
+              title="Pack Intelligence"
+              description="Earn Scout access to analyze faction intel."
+              testId="locked-panel-factions"
+            />
+          }
         >
           <FactionIntelPanel factions={factions} recomputeAction={refreshFactionsAction} />
         </PanelGate>
 
         <PanelGate
           panelKey="snapshots"
-          fallback={<LockedPanel title="Advisor Snapshots" description="Advisor tier holders can mint AI-ready snapshots." />}
+          fallback={
+            <LockedPanel
+              title="Advisor Snapshots"
+              description="Advisor tier holders can mint AI-ready snapshots."
+              testId="locked-panel-snapshots"
+            />
+          }
         >
           <SnapshotPanel snapshot={snapshot} onCreateSnapshot={createSnapshotAction} />
         </PanelGate>

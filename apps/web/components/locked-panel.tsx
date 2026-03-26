@@ -6,9 +6,10 @@ import { useProfile } from "../hooks/useProfile";
 interface LockedPanelProps {
   title: string;
   description: string;
+  testId?: string;
 }
 
-export function LockedPanel({ title, description }: LockedPanelProps) {
+export function LockedPanel({ title, description, testId }: LockedPanelProps) {
   const { status, accessStatus } = useProfile();
   const { isConnected, handleConnect } = useConnection();
 
@@ -27,7 +28,7 @@ export function LockedPanel({ title, description }: LockedPanelProps) {
         : "Earn additional credits to advance your tier.";
 
   return (
-    <article className="panel">
+    <article className="panel" data-testid={testId}>
       <p className="panel-label">{title}</p>
       <div className="locked-panel-card">
         <p>{description}</p>

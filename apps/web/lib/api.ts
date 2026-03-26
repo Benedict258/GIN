@@ -165,7 +165,7 @@ export async function submitReport(payload: CreateReportInput, auditWallet?: str
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...walletHeader(auditWallet)
+      ...(walletHeader(auditWallet) ?? {})
     },
     body: JSON.stringify(payload)
   });
@@ -186,7 +186,7 @@ export async function connectProfile(walletAddress: string, auditWallet?: string
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...walletHeader(auditWallet ?? walletAddress)
+      ...(walletHeader(auditWallet ?? walletAddress) ?? {})
     },
     body: JSON.stringify(payload)
   });
@@ -207,7 +207,7 @@ export async function publishArtifact(payload: PublishArtifactInput, auditWallet
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...walletHeader(auditWallet)
+      ...(walletHeader(auditWallet) ?? {})
     },
     body: JSON.stringify(body)
   });
@@ -228,7 +228,7 @@ export async function awardCredits(payload: AwardCreditsRequest, auditWallet?: s
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...walletHeader(auditWallet)
+      ...(walletHeader(auditWallet) ?? {})
     },
     body: JSON.stringify(body)
   });
@@ -292,6 +292,10 @@ async function extractError(response: Response) {
   }
 }
 
-function walletHeader(walletAddress?: string) {
-  return walletAddress ? { "X-Wallet-Address": walletAddress } : {};
+function walletHeader(walletAddress?: string): HeadersInit | undefined {
+  if (!walletAddress) {
+    return undefined;
+  }
+
+  return { "X-Wallet-Address": walletAddress };
 }

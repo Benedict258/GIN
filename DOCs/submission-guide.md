@@ -4,7 +4,7 @@ Use this checklist when recording or presenting the final demo.
 
 ## 1. Environment Prep
 
-1. Run `pnpm install` at repo root; then `pnpm --filter @gin/web install` to pull Playwright.
+1. Run `npm install` at repo root; then `npm install --workspace @gin/web` to pull Playwright.
 2. Export the correct env vars (see `DOCs/demo-env-checklist.md`). For the demo tenant:
    ```bash
    export NEXT_PUBLIC_EVE_FRONTIER_TENANT=utopia
@@ -14,8 +14,8 @@ Use this checklist when recording or presenting the final demo.
    ```
 3. Start services:
    ```bash
-   pnpm --filter @gin/api dev
-   pnpm --filter @gin/web dev
+   npm run dev --workspace @gin/api
+   npm run dev --workspace @gin/web
    ```
 4. Seed Supabase with the demo dataset (run your `supabase reset` helper script once).
 
@@ -42,5 +42,5 @@ Use this checklist when recording or presenting the final demo.
 
 ## 5. Smoke Tests
 
-- Run `pnpm --filter @gin/web test:e2e` to hit the connect → report → ledger happy path.
+- Run `npm run test:e2e --workspace @gin/web` to hit the connect → report → ledger happy path.
 - Hit `/status` on the API to confirm feature flags before presenting.

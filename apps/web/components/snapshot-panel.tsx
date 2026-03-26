@@ -10,9 +10,14 @@ export function SnapshotPanel({ snapshot, onCreateSnapshot }: SnapshotPanelProps
   return (
     <article className="panel panel-wide">
       <PanelGate
-        requiredPanel="snapshots"
-        panelName="Advisor Snapshot"
-        fallbackDescription="Advisor tier unlocks structured intelligence exports."
+        panelKey="snapshots"
+        fallback={
+          <div>
+            <p className="panel-label">Advisor Snapshot</p>
+            <h2>Latest Structured Intel</h2>
+            <p className="status">Advisor tier unlocks structured intelligence exports.</p>
+          </div>
+        }
       >
         <p className="panel-label">Advisor Snapshot</p>
         <h2>Latest Structured Intel</h2>

@@ -642,7 +642,7 @@ function mapSectorRow(row: SectorSummaryRow) {
     confidenceScore: row.confidence_score,
     verificationState: row.verification_state,
     topSignals: ensureStringArray(row.top_signals),
-    updatedAt: row.updated_at
+    updatedAt: ensureIsoString(row.updated_at)
   });
 }
 
@@ -668,7 +668,7 @@ function mapRouteRow(row: RouteSummaryRow) {
     routeState: normalizeRouteState(row.route_state),
     topSignals: ensureStringArray(row.top_signals),
     advisory: ensureStringArray(row.advisory),
-    updatedAt: row.updated_at
+    updatedAt: ensureIsoString(row.updated_at)
   });
 }
 
@@ -688,7 +688,7 @@ function mapFactionRow(row: FactionIntelRow) {
     avgConfidence: row.avg_confidence,
     dominantSignal: row.dominant_signal,
     topLocations: ensureStringArray(row.top_locations),
-    updatedAt: row.updated_at
+    updatedAt: ensureIsoString(row.updated_at)
   });
 }
 
@@ -705,7 +705,7 @@ function mapSnapshotRow(row: StructuredIntelSnapshotRow) {
     routes,
     factions,
     walrusBlobId: row.walrus_blob_id ?? undefined,
-    createdAt: row.created_at
+    createdAt: ensureIsoString(row.created_at)
   });
 }
 
@@ -749,6 +749,21 @@ function ensureStringArray(value: Json | null): string[] {
   }
 
   return value.filter((item): item is string => typeof item === "string");
+}
+
+function ensureIsoString(value: string | null | undefined) {
+  if (!value) {
+    return new Date().toISOString();
+  }
+
+  const normalized = value.includes(" ") && !value.includes("T") ? value.replace(" ", "T") : value;
+  const parsed = new Date(normalized);
+
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Invalid datetime value: ${value}`);
+  }
+
+  return parsed.toISOString();
 }
 
 async function issueContributorCredits(report: Report, payload: CreateReportInput, logger: FastifyBaseLogger) {

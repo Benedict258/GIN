@@ -10,9 +10,14 @@ export function FactionIntelPanel({ factions, recomputeAction }: FactionIntelPan
   return (
     <article className="panel">
       <PanelGate
-        requiredPanel="factions"
-        panelName="Pack Intelligence"
-        fallbackDescription="Scout tier unlocks pack/faction intel."
+        panelKey="factions"
+        fallback={
+          <div>
+            <p className="panel-label">Pack Situation Board</p>
+            <h2>Faction Intelligence</h2>
+            <p className="status">Scout tier unlocks pack/faction intel.</p>
+          </div>
+        }
       >
         <p className="panel-label">Pack Situation Board</p>
         <h2>Faction Intelligence</h2>
