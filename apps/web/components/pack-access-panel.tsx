@@ -22,7 +22,6 @@ export function PackAccessPanel() {
   const creditsUntilNext = nextTier ? Math.max(0, nextTier.minCredits - lifetimeCredits) : 0;
   const tierName = accessStatus?.tier.displayName ?? (status === "connected" ? "Guest Observer" : "Public");
   const assemblyName = assembly?.name ?? "No assembly selected";
-  const assemblyOwner = typeof assembly?.owner === "string" ? assembly.owner : undefined;
 
   return (
     <article className="panel">
@@ -34,7 +33,6 @@ export function PackAccessPanel() {
           : "Connect your EVE Vault wallet to sync contributor status."}
       </p>
       <p className="status-small">Assembly context: {assemblyName}</p>
-      {assemblyOwner ? <p className="status-small">Assembly owner: {assemblyOwner}</p> : null}
       <p className="status">
         {nextTier
           ? `${creditsUntilNext} credits until ${nextTier.displayName}`
