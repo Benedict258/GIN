@@ -8,7 +8,7 @@ test.describe("GIN demo surface", () => {
 
     await expect(page.getByTestId("hero-heading")).toHaveText(HERO_COPY);
     await expect(page.getByText("Shared Pack View")).toBeVisible();
-    await expect(page.getByText("Contributor Credits")).toBeVisible();
+    await expect(page.getByTestId("panel-credits-label")).toBeVisible();
     await expect(page.getByText("Demo Narrative")).toBeVisible();
   });
 

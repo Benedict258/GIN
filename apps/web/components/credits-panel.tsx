@@ -31,7 +31,9 @@ export function CreditsPanel() {
 
   return (
     <article className="panel">
-      <p className="panel-label">Contributor Credits</p>
+      <p className="panel-label" data-testid="panel-credits-label">
+        Contributor Credits
+      </p>
       <h2>Reward Ledger</h2>
       <p className="lede-tight">
         Earn credits by submitting verified reports, confirming intel, or importing ecosystem signals. Credits unlock

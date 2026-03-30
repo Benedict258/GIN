@@ -24,7 +24,7 @@ import { useConnection } from "@evefrontier/dapp-kit/hooks";
 
 const OBJECT_ID_FALLBACK = (process.env.NEXT_PUBLIC_EVE_FRONTIER_ITEM_ID ?? "").trim();
 
-export function FrontierProvider({ children, queryClient }: { children: ReactNode; queryClient: QueryClient }) {
+export function EveFrontierProvider({ children, queryClient }: { children: ReactNode; queryClient: QueryClient }) {
   return (
     <QueryClientProvider client={queryClient}>
       <DAppKitProvider dAppKit={dAppKit}>
