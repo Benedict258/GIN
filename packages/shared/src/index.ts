@@ -17,6 +17,33 @@ export const signalTypeSchema = z.enum([
   "manual_report"
 ]);
 
+export const notificationSeveritySchema = z.enum(["info", "warning", "danger"]);
+
+export const createNotificationInputSchema = z.object({
+  title: z.string().min(1).max(140),
+  message: z.string().min(1).max(480),
+  severity: notificationSeveritySchema.default("info"),
+  sector: z.string().min(1).max(140).optional(),
+  actionUrl: z.string().url().optional(),
+  metadata: z.record(z.string(), z.unknown()).default({})
+});
+
+export const notificationSchema = createNotificationInputSchema.extend({
+  id: z.string().uuid(),
+  createdAt: z.string().datetime()
+});
+
+export const worldSignalSchema = z.object({
+  id: z.string().uuid(),
+  sector: z.string().min(1),
+  signalType: signalTypeSchema,
+  summary: z.string().min(1),
+  confidenceScore: z.number().min(0).max(100),
+  metadata: z.record(z.string(), z.unknown()).default({}),
+  observedAt: z.string().datetime(),
+  createdAt: z.string().datetime()
+});
+
 export const createReportInputSchema = z.object({
   reporterId: z.string().min(1),
   location: z.string().min(1),
@@ -82,6 +109,49 @@ export const factionIntelSchema = z.object({
   dominantSignal: signalTypeSchema.nullable(),
   topLocations: z.array(z.string()),
   updatedAt: z.string().datetime()
+});
+
+export const knowledgeDifficultySchema = z.enum(["standard", "advanced", "critical"]);
+
+export const createKnowledgeArticleSchema = z.object({
+  slug: z.string().min(1),
+  title: z.string().min(1),
+  summary: z.string().min(1),
+  steps: z.array(z.string()).default([]),
+  tags: z.array(z.string()).default([]),
+  relatedLocations: z.array(z.string()).default([]),
+  difficulty: knowledgeDifficultySchema.default("standard")
+});
+
+export const knowledgeArticleSchema = createKnowledgeArticleSchema.extend({
+  id: z.string().uuid(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime()
+});
+
+export const profilePreferenceSchema = z.object({
+  profileId: z.string().uuid(),
+  lastKnownSector: z.string().min(1).optional(),
+  alertOptIn: z.boolean(),
+  lastSeenAt: z.string().datetime()
+});
+
+export const updateProfilePreferenceInputSchema = z.object({
+  profileId: z.string().uuid(),
+  lastKnownSector: z.string().min(1).optional(),
+  alertOptIn: z.boolean().optional()
+});
+
+export const assistantQueryInputSchema = z.object({
+  profileId: z.string().uuid().optional(),
+  prompt: z.string().min(1).max(600),
+  sector: z.string().min(1).optional()
+});
+
+export const assistantReplySchema = z.object({
+  reply: z.string().min(1),
+  relatedArticles: knowledgeArticleSchema.array(),
+  suggestedActions: z.array(z.string()).default([])
 });
 
 export const structuredIntelSnapshotSchema = z.object({
@@ -288,3 +358,12 @@ export type AwardContributionCreditsInput = z.infer<typeof awardContributionCred
 export type AwardContributionCreditsResponse = z.infer<typeof awardContributionCreditsResponseSchema>;
 export type CreditsLedgerResponse = z.infer<typeof creditsLedgerResponseSchema>;
 export type AccessStatusResponse = z.infer<typeof accessStatusResponseSchema>;
+export type Notification = z.infer<typeof notificationSchema>;
+export type WorldSignal = z.infer<typeof worldSignalSchema>;
+export type CreateNotificationInput = z.infer<typeof createNotificationInputSchema>;
+export type KnowledgeArticle = z.infer<typeof knowledgeArticleSchema>;
+export type CreateKnowledgeArticleInput = z.infer<typeof createKnowledgeArticleSchema>;
+export type ProfilePreference = z.infer<typeof profilePreferenceSchema>;
+export type UpdateProfilePreferenceInput = z.infer<typeof updateProfilePreferenceInputSchema>;
+export type AssistantReply = z.infer<typeof assistantReplySchema>;
+export type AssistantQueryInput = z.infer<typeof assistantQueryInputSchema>;

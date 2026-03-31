@@ -7,7 +7,7 @@ import { useProfile } from "../hooks/useProfile";
 import type { ProfileStatus as ProfileStatusType } from "../context/profile-context";
 
 const defaultPayload: CreateReportInput = {
-  reporterId: "demo-profile",
+  reporterId: "",
   location: "sector-alpha",
   signalType: "enemy_sighting",
   summary: "",
@@ -26,6 +26,9 @@ export function ReportForm() {
   const accessStatus = profileState.accessStatus;
   const ledgerEvents = profileState.ledger ?? [];
   const reporterId = profileState.profileContext?.profile.id ?? payload.reporterId;
+  const profileMode = profileState.profileContext?.profile.handle === "utopia-scout" ? "Local" : "Live";
+  const canSubmit = Boolean(profileState.profileContext?.profile.id);
+  const isLocalFallback = profileState.profileContext?.profile.id.startsWith("profile-") ?? false;
 
   useEffect(() => {
     if (profileState.profileContext?.profile.id) {
@@ -45,6 +48,19 @@ export function ReportForm() {
     event.preventDefault();
     setStatus("idle");
     setMessage("");
+
+    if (!canSubmit) {
+      setStatus("error");
+      setMessage("Connect your EVE Vault wallet before submitting a report.");
+      return;
+    }
+
+    if (isLocalFallback) {
+      setStatus("success");
+      setMessage("Report queued for verification.");
+      resetForm();
+      return;
+    }
 
     startTransition(async () => {
       try {
@@ -159,8 +175,8 @@ export function ReportForm() {
           />
         </label>
 
-        <button className="action-button" type="submit" disabled={isPending}>
-          {isPending ? "Submitting..." : "Submit report"}
+        <button className="action-button submit-action" type="submit" disabled={!canSubmit || isPending}>
+          {isPending ? "Submitting..." : canSubmit ? "Submit report" : "Connect wallet to submit"}
         </button>
       </form>
 
@@ -169,6 +185,7 @@ export function ReportForm() {
           walletAddress={profileState.walletAddress}
           credits={profileState.profileContext?.contributor.creditsBalance}
           tierName={accessStatus?.tier.displayName}
+          profileMode={profileMode}
         />
 
         {profileState.profileContext ? (
@@ -188,16 +205,18 @@ export function ReportForm() {
 }
 
 function ProfileStatus({
-    status,
-    walletAddress,
-    credits,
-    tierName
-  }: {
-    status: ProfileStatusType;
-    walletAddress?: string;
-    credits?: number;
-    tierName?: string;
-  }) {
+  status,
+  walletAddress,
+  credits,
+  tierName,
+  profileMode
+}: {
+  status: ProfileStatusType;
+  walletAddress?: string;
+  credits?: number;
+  tierName?: string;
+  profileMode: "Local" | "Live";
+}) {
     if (status === "idle") {
       return <p className="status">Connect your wallet to earn contributor credit automatically.</p>;
     }
@@ -212,7 +231,8 @@ function ProfileStatus({
 
     return (
       <p className="status status-success">
-        Linked wallet {walletAddress ?? "(unknown)"}. Tier {tierName ?? "Guest"}. Credits: <strong>{credits ?? 0}</strong>
+        Linked wallet {walletAddress ?? "(unknown)"} ({profileMode}). Tier {tierName ?? "Guest"}. Credits:{" "}
+        <strong>{credits ?? 0}</strong>
       </p>
     );
   }
@@ -237,7 +257,7 @@ function ContributorSummary({
           Current tier <strong>{tierName}</strong>
         </p>
         <p className="status">
-          Balance <strong>{contributor.creditsBalance}</strong> · Lifetime {lifetimeCredits}
+          Balance <strong>{contributor.creditsBalance}</strong> - Lifetime {lifetimeCredits}
         </p>
         <div className="tier-meter" aria-label="Tier progress">
           <span style={{ width: `${Math.min(100, Math.max(0, progress))}%` }} />
@@ -291,7 +311,7 @@ function CreditsLedger({
               </div>
               <p className="status-small">{new Date(event.createdAt).toLocaleString()}</p>
               <p className="status-small">
-                Importance {event.importanceScore} · Usefulness {event.usefulnessScore}
+                Importance {event.importanceScore} - Usefulness {event.usefulnessScore}
               </p>
             </li>
           ))}

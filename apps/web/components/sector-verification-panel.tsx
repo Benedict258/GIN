@@ -53,7 +53,7 @@ export function SectorVerificationPanel({ sectors }: { sectors: SectorSummary[] 
             </div>
             <p className="status">
               {STATE_COPY[sector.verificationState]}
-              {" · Updated "}
+              {" - Updated "}
               {formatTimestamp(sector.updatedAt)}
             </p>
             {sector.topSignals.length ? (

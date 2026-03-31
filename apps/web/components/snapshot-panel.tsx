@@ -24,10 +24,10 @@ export function SnapshotPanel({ snapshot, onCreateSnapshot }: SnapshotPanelProps
         {snapshot ? (
           <div className="status-card">
             <p className="status">
-              Snapshot ID <strong>{snapshot.id.slice(0, 8)}…</strong>
+              Snapshot ID <strong>{snapshot.id.slice(0, 8)}...</strong>
             </p>
             <p className="status">
-              Sectors <strong>{snapshot.sectors.length}</strong> · Routes <strong>{snapshot.routes.length}</strong> ·
+              Sectors <strong>{snapshot.sectors.length}</strong> - Routes <strong>{snapshot.routes.length}</strong> -
               Factions <strong>{snapshot.factions.length}</strong>
             </p>
             <p className="status">Captured {new Date(snapshot.createdAt).toLocaleString()}</p>

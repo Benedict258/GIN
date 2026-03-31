@@ -21,7 +21,7 @@ export function PackAccessPanel() {
   const lifetimeCredits = accessStatus?.contributor?.lifetimeCredits ?? 0;
   const creditsUntilNext = nextTier ? Math.max(0, nextTier.minCredits - lifetimeCredits) : 0;
   const tierName = accessStatus?.tier.displayName ?? (status === "connected" ? "Guest Observer" : "Public");
-  const assemblyName = assembly?.name ?? "No assembly selected";
+  const assemblyName = assembly?.name ?? "Utopia Relay Node (Simulated)";
 
   return (
     <article className="panel">

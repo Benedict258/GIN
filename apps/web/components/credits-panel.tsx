@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useConnection, useSmartObject } from "@evefrontier/dapp-kit";
+import { useConnection } from "@evefrontier/dapp-kit";
 import { useProfile } from "../hooks/useProfile";
 
 const EVENT_LABELS: Record<string, string> = {
@@ -16,7 +16,6 @@ const EVENT_LABELS: Record<string, string> = {
 export function CreditsPanel() {
   const { status, accessStatus, ledger, refresh } = useProfile();
   const { isConnected, handleConnect, walletAddress } = useConnection();
-  const { assembly } = useSmartObject();
 
   const tierName = accessStatus?.tier.displayName ?? "Guest Observer";
   const nextTier = accessStatus?.nextTier ?? null;
@@ -39,9 +38,7 @@ export function CreditsPanel() {
         Earn credits by submitting verified reports, confirming intel, or importing ecosystem signals. Credits unlock
         new intelligence tiers inside the Frontier client.
       </p>
-      <p className="status-small">
-        Wallet {walletAddress ? shorten(walletAddress) : "not connected"} · Assembly {assembly?.name ?? "n/a"}
-      </p>
+      <p className="status-small">Wallet {walletAddress ? shorten(walletAddress) : "not connected"}</p>
       {status === "error" ? (
         <div className="locked-panel-card">
           <p>We couldn't sync your contributor data.</p>
@@ -157,5 +154,5 @@ function shorten(value: string) {
     return value;
   }
 
-  return `${value.slice(0, 4)}…${value.slice(-4)}`;
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
 }

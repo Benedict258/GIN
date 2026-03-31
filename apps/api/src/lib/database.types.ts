@@ -151,3 +151,47 @@ export type ContributionActionRow = {
   is_active: boolean;
   created_at: string;
 };
+
+export type ProfilePreferenceRow = {
+  profile_id: string;
+  last_known_sector: string | null;
+  alert_opt_in: boolean;
+  last_seen_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorldSignalRow = {
+  id: string;
+  sector: string;
+  signal_type: ReportRow["signal_type"];
+  summary: string;
+  confidence_score: number;
+  metadata: Json | null;
+  observed_at: string;
+  created_at: string;
+};
+
+export type NotificationRow = {
+  id: string;
+  title: string;
+  message: string;
+  severity: "info" | "warning" | "danger";
+  sector: string | null;
+  action_url: string | null;
+  metadata: Json | null;
+  created_at: string;
+};
+
+export type KnowledgeArticleRow = {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  steps: Json | null;
+  tags: Json | null;
+  related_locations: Json | null;
+  difficulty: "standard" | "advanced" | "critical";
+  created_at: string;
+  updated_at: string;
+};

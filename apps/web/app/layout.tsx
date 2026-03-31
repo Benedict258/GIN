@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ProvidersSlot } from "../components/providers-slot";
+import { AppShell } from "../components/app-shell";
 
 export const metadata: Metadata = {
   title: "GIN",
@@ -15,7 +16,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <ProvidersSlot>{children}</ProvidersSlot>
+        <ProvidersSlot>
+          <AppShell>{children}</AppShell>
+        </ProvidersSlot>
       </body>
     </html>
   );

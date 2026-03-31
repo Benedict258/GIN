@@ -149,10 +149,7 @@ function PatchedSmartObjectProvider({ children }: { children: ReactNode }) {
       setSelectedTenant(queryTenant);
       setIsObjectIdDirect(false);
     } else {
-      console.warn(
-        "[GIN] SmartObjectProvider: No object ID provided; falling back to locked experience. Set NEXT_PUBLIC_EVE_FRONTIER_ITEM_ID or pass ?itemId=<assembly>."
-      );
-      setError("Missing assembly identifier. Provide NEXT_PUBLIC_EVE_FRONTIER_ITEM_ID or ?itemId=.");
+      setError(null);
       setLoading(false);
     }
   }, []);

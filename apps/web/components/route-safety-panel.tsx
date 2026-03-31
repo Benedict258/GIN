@@ -14,7 +14,7 @@ type RouteSafetyPanelProps = {
 export function RouteSafetyPanel({ routes, recomputeAction }: RouteSafetyPanelProps) {
   return (
     <article className="panel">
-      <p className="panel-label">Corridor Safety · EVE Frontier</p>
+      <p className="panel-label">Corridor Safety - EVE Frontier</p>
       <h2>Route Intelligence</h2>
       <p className="lede-tight">
         This mirrors the corridor widget we plan to surface on the assembly HUD so commanders inside Utopia can decide
@@ -35,7 +35,7 @@ export function RouteSafetyPanel({ routes, recomputeAction }: RouteSafetyPanelPr
             <li key={`${route.origin}-${route.destination}`}>
               <div>
                 <strong>
-                  {route.origin} ↔ {route.destination}
+                  {route.origin} {"<->"} {route.destination}
                 </strong>
                 <span className={STATE_BADGE[route.routeState] ?? ""}>{route.routeState}</span>
               </div>

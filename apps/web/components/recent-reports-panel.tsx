@@ -15,7 +15,7 @@ export function RecentReportsPanel({ reports }: { reports: Report[] }) {
 
   return (
     <article className="panel">
-      <p className="panel-label">Trust Monitor · Utopia compatible</p>
+      <p className="panel-label">Trust Monitor - Utopia compatible</p>
       <h2>Verification Signals</h2>
       <p className="lede-tight">
         This layout mirrors the compact view we will surface when the mod is running in the Utopia test
@@ -31,7 +31,7 @@ export function RecentReportsPanel({ reports }: { reports: Report[] }) {
               <div>
                 <strong>{report.location}</strong>
                 <span>
-                  {report.signalType} · {report.verificationState}
+                  {report.signalType} - {report.verificationState}
                 </span>
               </div>
               <div className="scores">
@@ -41,7 +41,7 @@ export function RecentReportsPanel({ reports }: { reports: Report[] }) {
                 <span>Factions {report.uniqueFactions}</span>
               </div>
               <p className="status">
-                Latest update {new Date(report.createdAt).toLocaleString()} · Hash {report.dedupeHash.slice(0, 10)}…
+                Latest update {new Date(report.createdAt).toLocaleString()} - Hash {report.dedupeHash.slice(0, 10)}...
               </p>
               <div className="info-list">
                 {Object.keys(COMPONENT_LABELS).map((key) => (

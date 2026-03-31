@@ -24,9 +24,28 @@ import {
   sectorSummarySchema,
   structuredIntelSnapshotSchema,
   accessStatusResponseSchema,
-  walrusArtifactContentSchema
+  walrusArtifactContentSchema,
+  createNotificationInputSchema,
+  notificationSchema,
+  createKnowledgeArticleSchema,
+  knowledgeArticleSchema,
+  profilePreferenceSchema,
+  updateProfilePreferenceInputSchema,
+  worldSignalSchema,
+  assistantQueryInputSchema,
+  assistantReplySchema
 } from "@gin/shared";
-import type { CreateReportInput, PublishArtifactInput, Report, WalrusArtifactContent } from "@gin/shared";
+import type {
+  CreateKnowledgeArticleInput,
+  CreateNotificationInput,
+  CreateReportInput,
+  PublishArtifactInput,
+  Report,
+  WalrusArtifactContent,
+  ProfilePreference,
+  UpdateProfilePreferenceInput,
+  AssistantReply
+} from "@gin/shared";
 import type { FastifyBaseLogger, FastifyRequest } from "fastify";
 import { supabase } from "./lib/supabase.js";
 import type {
@@ -41,7 +60,11 @@ import type {
   ContributorProfileRow,
   CreditEventRow,
   AccessTierRow,
-  ContributionActionRow
+  ContributionActionRow,
+  KnowledgeArticleRow,
+  NotificationRow,
+  ProfilePreferenceRow,
+  WorldSignalRow
 } from "./lib/database.types.js";
 import { awardCreditsOnChain, deriveReportDigest, isSuiConfigured, publishArtifactOnChain } from "./lib/contracts.js";
 import { isWalrusConfigured, pinWalrusArtifact } from "./lib/walrus.js";
@@ -58,6 +81,9 @@ const DEFAULT_RECOMMENDATION_LIMIT = 10;
 const DEFAULT_REPORT_LIMIT = 20;
 const DEFAULT_ROUTE_LIMIT = 10;
 const DEFAULT_FACTION_LIMIT = 10;
+const DEFAULT_NOTIFICATION_LIMIT = 8;
+const DEFAULT_KNOWLEDGE_LIMIT = 6;
+const DEFAULT_WORLD_SIGNAL_LIMIT = 6;
 const SERVICE_VERSION = process.env.GIN_DEPLOY_VERSION ?? process.env.npm_package_version ?? "dev";
 const DISABLE_ONCHAIN_CREDITS = process.env.GIN_DISABLE_ONCHAIN === "true";
 const DISABLE_WALRUS = process.env.GIN_DISABLE_WALRUS === "true";
@@ -82,6 +108,20 @@ const creditsLedgerQuerySchema = z.object({
 });
 
 const accessStatusQuerySchema = z.object({
+  profileId: z.string().uuid()
+});
+
+const notificationsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(DEFAULT_NOTIFICATION_LIMIT),
+  sector: z.string().min(1).optional(),
+  profileId: z.string().uuid().optional()
+});
+
+const knowledgeListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(25).default(DEFAULT_KNOWLEDGE_LIMIT)
+});
+
+const profilePreferenceQuerySchema = z.object({
   profileId: z.string().uuid()
 });
 
@@ -271,12 +311,84 @@ export function buildApp() {
     try {
       const report = await saveReport(payload);
       await issueContributorCredits(report, payload, request.log);
+      await touchProfilePreferences(report.reporterId, { lastKnownSector: payload.location });
       reply.code(201);
       return { report };
     } catch (error) {
       request.log.error({ err: error }, "Failed to save report");
       reply.code(500);
       return { error: "Failed to store report" };
+    }
+  });
+
+  app.get("/api/notifications/latest", async (request, reply) => {
+    const query = notificationsQuerySchema.parse(request.query ?? {});
+
+    try {
+      const sectorFilter = await resolveNotificationSector(query.sector, query.profileId);
+      const [notifications, worldSignals] = await Promise.all([
+        fetchNotifications(query.limit, {
+          sector: sectorFilter,
+          profileId: query.profileId
+        }),
+        fetchWorldSignals(DEFAULT_WORLD_SIGNAL_LIMIT, {
+          sector: sectorFilter
+        })
+      ]);
+      return { notifications, worldSignals };
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to fetch notifications");
+      reply.code(500);
+      return { error: "Failed to load notifications" };
+    }
+  });
+
+  app.post("/api/notifications", async (request, reply) => {
+    const payload = createNotificationInputSchema.parse(request.body ?? {});
+    const auditWallet = resolveAuditWallet(request);
+    if (auditWallet) {
+      request.log.info({ auditWallet }, "Notification publish request");
+    }
+
+    try {
+      const notification = await createNotification(payload);
+      reply.code(201);
+      return { notification };
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to create notification");
+      reply.code(500);
+      return { error: "Failed to create notification" };
+    }
+  });
+
+  app.get("/api/knowledge/articles", async (request, reply) => {
+    const query = knowledgeListQuerySchema.parse(request.query ?? {});
+
+    try {
+      const articles = await fetchKnowledgeArticles(query.limit);
+      return { articles };
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to fetch knowledge articles");
+      reply.code(500);
+      return { error: "Failed to load knowledge articles" };
+    }
+  });
+
+  app.post("/api/knowledge/articles", async (request, reply) => {
+    const payload = createKnowledgeArticleSchema.parse(request.body ?? {});
+    const auditWallet = resolveAuditWallet(request);
+    if (auditWallet) {
+      request.log.info({ auditWallet, slug: payload.slug }, "Knowledge article upsert request");
+    }
+
+    try {
+      const article = await upsertKnowledgeArticle(payload);
+      reply.code(201);
+      return { article };
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to upsert knowledge article");
+      reply.code(500);
+      return { error: "Failed to store knowledge article" };
     }
   });
 
@@ -294,6 +406,57 @@ export function buildApp() {
       request.log.error({ err: error }, "Failed to connect profile");
       reply.code(500);
       return { error: "Failed to connect profile" };
+    }
+  });
+
+  app.get("/api/profiles/preferences", async (request, reply) => {
+    const query = profilePreferenceQuerySchema.parse(request.query ?? {});
+    const auditWallet = resolveAuditWallet(request);
+    if (auditWallet) {
+      request.log.info({ auditWallet, profileId: query.profileId }, "Profile preference fetch");
+    }
+
+    try {
+      const preferenceRow = await ensureProfilePreferences(query.profileId);
+      return { preference: mapProfilePreferenceRow(preferenceRow) };
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to load profile preferences");
+      reply.code(500);
+      return { error: "Failed to load profile preferences" };
+    }
+  });
+
+  app.post("/api/profiles/preferences", async (request, reply) => {
+    const payload = updateProfilePreferenceInputSchema.parse(request.body ?? {});
+    const auditWallet = resolveAuditWallet(request);
+    if (auditWallet) {
+      request.log.info({ auditWallet, profileId: payload.profileId }, "Profile preference update");
+    }
+
+    try {
+      const preference = await upsertProfilePreferences(payload);
+      return { preference };
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to update profile preferences");
+      reply.code(500);
+      return { error: "Failed to update preferences" };
+    }
+  });
+
+  app.post("/api/assistant/query", async (request, reply) => {
+    const payload = assistantQueryInputSchema.parse(request.body ?? {});
+    const auditWallet = resolveAuditWallet(request);
+    if (auditWallet) {
+      request.log.info({ auditWallet, profileId: payload.profileId }, "Assistant query");
+    }
+
+    try {
+      const response = await buildAssistantReply(payload);
+      return assistantReplySchema.parse(response);
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to build assistant reply");
+      reply.code(500);
+      return { error: "Failed to process assistant query" };
     }
   });
 
@@ -579,6 +742,281 @@ async function fetchLatestSnapshot() {
   return mapSnapshotRow(data as StructuredIntelSnapshotRow);
 }
 
+async function fetchNotifications(
+  limit = DEFAULT_NOTIFICATION_LIMIT,
+  options?: { sector?: string; profileId?: string }
+) {
+  const fetchLimit = options?.sector ? Math.min(50, limit * 3) : limit;
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(fetchLimit);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const sectorFilter = options?.sector?.toLowerCase();
+  let rows = (data ?? []) as NotificationRow[];
+
+  if (sectorFilter) {
+    rows = rows.filter((row) => {
+      if (!row.sector) {
+        return true;
+      }
+      return row.sector.toLowerCase() === sectorFilter;
+    });
+    try {
+      await touchProfilePreferences(options.profileId, { lastSeenAt: new Date().toISOString() });
+    } catch (error) {
+      console.warn("Failed to touch profile preferences", error);
+    }
+  }
+
+  return rows.slice(0, limit).map((row) => mapNotificationRow(row));
+}
+
+async function fetchWorldSignals(limit = DEFAULT_WORLD_SIGNAL_LIMIT, options?: { sector?: string }) {
+  const fetchLimit = options?.sector ? Math.min(50, limit * 2) : limit;
+  const { data, error } = await supabase
+    .from("world_signals")
+    .select("*")
+    .order("observed_at", { ascending: false })
+    .limit(fetchLimit);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  let rows = (data ?? []) as WorldSignalRow[];
+  const sectorFilter = options?.sector?.toLowerCase();
+  if (sectorFilter) {
+    rows = rows.filter((row) => row.sector.toLowerCase() === sectorFilter);
+  }
+
+  return rows.slice(0, limit).map((row) => mapWorldSignalRow(row));
+}
+
+async function createNotification(payload: CreateNotificationInput) {
+  const { data, error } = await supabase
+    .from("notifications")
+    .insert({
+      title: payload.title,
+      message: payload.message,
+      severity: payload.severity,
+      sector: payload.sector ?? null,
+      action_url: payload.actionUrl ?? null,
+      metadata: payload.metadata ?? {}
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "Failed to create notification");
+  }
+
+  return mapNotificationRow(data as NotificationRow);
+}
+
+async function fetchKnowledgeArticles(limit = DEFAULT_KNOWLEDGE_LIMIT) {
+  const { data, error } = await supabase
+    .from("knowledge_articles")
+    .select("*")
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []).map((row) => mapKnowledgeArticleRow(row as KnowledgeArticleRow));
+}
+
+async function upsertKnowledgeArticle(payload: CreateKnowledgeArticleInput) {
+  const { data, error } = await supabase
+    .from("knowledge_articles")
+    .upsert(
+      {
+        slug: payload.slug,
+        title: payload.title,
+        summary: payload.summary,
+        steps: payload.steps,
+        tags: payload.tags,
+        related_locations: payload.relatedLocations,
+        difficulty: payload.difficulty
+      },
+      { onConflict: "slug" }
+    )
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "Failed to store knowledge article");
+  }
+
+  return mapKnowledgeArticleRow(data as KnowledgeArticleRow);
+}
+
+async function resolveNotificationSector(querySector?: string, profileId?: string) {
+  if (querySector && querySector.trim().length) {
+    return querySector.trim();
+  }
+
+  if (!profileId) {
+    return undefined;
+  }
+
+  const preferences = await ensureProfilePreferences(profileId);
+  return preferences.last_known_sector ?? undefined;
+}
+
+async function upsertProfilePreferences(payload: UpdateProfilePreferenceInput) {
+  const nowIso = new Date().toISOString();
+  const updates: Record<string, unknown> = {
+    updated_at: nowIso,
+    last_seen_at: nowIso
+  };
+
+  if (typeof payload.alertOptIn === "boolean") {
+    updates.alert_opt_in = payload.alertOptIn;
+  }
+
+  if (payload.lastKnownSector) {
+    updates.last_known_sector = payload.lastKnownSector;
+  }
+
+  const { data, error } = await supabase
+    .from("profile_preferences")
+    .upsert({ profile_id: payload.profileId, ...updates }, { onConflict: "profile_id" })
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "Failed to update profile preferences");
+  }
+
+  return mapProfilePreferenceRow(data as ProfilePreferenceRow);
+}
+
+async function ensureProfilePreferences(profileId: string) {
+  const { data, error } = await supabase
+    .from("profile_preferences")
+    .select("*")
+    .eq("profile_id", profileId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (data) {
+    return data as ProfilePreferenceRow;
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("profile_preferences")
+    .insert({ profile_id: profileId })
+    .select("*")
+    .single();
+
+  if (insertError || !inserted) {
+    throw new Error(insertError?.message ?? "Unable to create profile preferences");
+  }
+
+  return inserted as ProfilePreferenceRow;
+}
+
+async function touchProfilePreferences(profileId?: string, params?: { lastKnownSector?: string; lastSeenAt?: string }) {
+  if (!profileId) {
+    return;
+  }
+
+  const nowIso = params?.lastSeenAt ?? new Date().toISOString();
+  const updates: Record<string, unknown> = {
+    updated_at: nowIso,
+    last_seen_at: nowIso
+  };
+
+  if (params?.lastKnownSector) {
+    updates.last_known_sector = params.lastKnownSector;
+  }
+
+  const { error } = await supabase
+    .from("profile_preferences")
+    .upsert({ profile_id: profileId, ...updates }, { onConflict: "profile_id" });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function buildAssistantReply(payload: z.infer<typeof assistantQueryInputSchema>): Promise<AssistantReply> {
+  const normalizedPrompt = payload.prompt.toLowerCase();
+  const preferredSector = await resolveNotificationSector(payload.sector, payload.profileId);
+  if (payload.profileId) {
+    await touchProfilePreferences(payload.profileId, { lastSeenAt: new Date().toISOString() });
+  }
+
+  const [articles, hotSignals] = await Promise.all([
+    fetchKnowledgeArticles(12),
+    fetchWorldSignals(3, { sector: preferredSector })
+  ]);
+  const ranked = articles
+    .map((article) => {
+      let score = 0;
+      if (preferredSector && article.relatedLocations.some((location) => location.toLowerCase() === preferredSector.toLowerCase())) {
+        score += 2;
+      }
+      if (article.tags.some((tag) => normalizedPrompt.includes(tag.toLowerCase()))) {
+        score += 1;
+      }
+      if (normalizedPrompt.includes(article.slug.replace(/-/g, " "))) {
+        score += 1;
+      }
+      return { article, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const relatedArticles = ranked.filter((item) => item.score > 0).map((item) => item.article).slice(0, 3);
+  const fallbackArticles = relatedArticles.length ? relatedArticles : articles.slice(0, 2);
+  const feature = fallbackArticles[0];
+
+  const replyParts: string[] = [];
+  if (preferredSector) {
+    replyParts.push(`Monitoring ${preferredSector}.`);
+  }
+  if (feature) {
+    replyParts.push(`${feature.title}: ${feature.summary}`);
+    if (feature.steps.length) {
+      replyParts.push(`Next steps: ${feature.steps.slice(0, 2).join(" → ")}.`);
+    }
+  } else {
+    replyParts.push("No field guides available yet. Submit reports to seed intelligence.");
+  }
+
+  if (hotSignals.length) {
+    const signalSummary = hotSignals
+      .map((signal) => `${signal.sector}: ${signal.summary} (${signal.confidenceScore}% conf)`)
+      .join(" | ");
+    replyParts.push(`Live signals: ${signalSummary}.`);
+  }
+
+  const suggestedActions = feature
+    ? [
+        `Follow ${feature.title} steps`,
+        "Submit a live report once the task is complete",
+        "Trigger an automation cycle to refresh intel"
+      ]
+    : ["Submit a report", "Trigger automation cycle"];
+
+  return assistantReplySchema.parse({
+    reply: replyParts.join(" ").trim(),
+    relatedArticles: fallbackArticles,
+    suggestedActions
+  });
+}
+
 async function saveReport(payload: CreateReportInput) {
   const dedupeHash = deriveDedupeHashFromPayload(payload);
   const factionTag = payload.factionTag?.trim().toLowerCase() ?? null;
@@ -706,6 +1144,56 @@ function mapSnapshotRow(row: StructuredIntelSnapshotRow) {
     factions,
     walrusBlobId: row.walrus_blob_id ?? undefined,
     createdAt: ensureIsoString(row.created_at)
+  });
+}
+
+function mapNotificationRow(row: NotificationRow) {
+  return notificationSchema.parse({
+    id: row.id,
+    title: row.title,
+    message: row.message,
+    severity: row.severity,
+    sector: row.sector ?? undefined,
+    actionUrl: row.action_url ?? undefined,
+    metadata: asRecord(row.metadata) ?? {},
+    createdAt: ensureIsoString(row.created_at)
+  });
+}
+
+function mapWorldSignalRow(row: WorldSignalRow) {
+  return worldSignalSchema.parse({
+    id: row.id,
+    sector: row.sector,
+    signalType: row.signal_type,
+    summary: row.summary,
+    confidenceScore: row.confidence_score,
+    metadata: asRecord(row.metadata) ?? {},
+    observedAt: ensureIsoString(row.observed_at),
+    createdAt: ensureIsoString(row.created_at)
+  });
+}
+
+function mapKnowledgeArticleRow(row: KnowledgeArticleRow) {
+  return knowledgeArticleSchema.parse({
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    summary: row.summary,
+    steps: ensureStringArray(row.steps),
+    tags: ensureStringArray(row.tags),
+    relatedLocations: ensureStringArray(row.related_locations),
+    difficulty: row.difficulty,
+    createdAt: ensureIsoString(row.created_at),
+    updatedAt: ensureIsoString(row.updated_at)
+  });
+}
+
+function mapProfilePreferenceRow(row: ProfilePreferenceRow): ProfilePreference {
+  return profilePreferenceSchema.parse({
+    profileId: row.profile_id,
+    lastKnownSector: row.last_known_sector ?? undefined,
+    alertOptIn: row.alert_opt_in,
+    lastSeenAt: ensureIsoString(row.last_seen_at)
   });
 }
 
@@ -1110,6 +1598,7 @@ async function connectProfile(walletAddress: string) {
   const normalized = walletAddress.toLowerCase();
   const profileRow = await findOrCreateProfile(normalized);
   const contributorRow = await ensureContributorProfile(profileRow.id);
+  await ensureProfilePreferences(profileRow.id);
 
   return {
     profile: mapProfileRow(profileRow),
@@ -1190,7 +1679,7 @@ function mapProfileRow(row: ProfileRow) {
     handle: row.handle,
     displayName: row.display_name,
     accessTier: row.access_tier,
-    createdAt: row.created_at
+    createdAt: ensureIsoString(row.created_at)
   });
 }
 
@@ -1198,11 +1687,11 @@ function mapContributorRow(row: ContributorProfileRow) {
   return contributorProfileSchema.parse({
     profileId: row.profile_id,
     creditsBalance: row.credits_balance,
-     lifetimeCredits: row.lifetime_credits,
-     tierProgress: row.tier_progress,
+    lifetimeCredits: row.lifetime_credits,
+    tierProgress: row.tier_progress,
     reputationScore: row.reputation_score,
     contributionCount: row.contribution_count,
-    lastContributionAt: row.last_contribution_at
+    lastContributionAt: row.last_contribution_at ? ensureIsoString(row.last_contribution_at) : null
   });
 }
 

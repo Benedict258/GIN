@@ -4,6 +4,7 @@ import {
   CreateReportInput,
   PublishArtifactInput,
   PublishArtifactResponse,
+  UpdateProfilePreferenceInput,
   awardCreditsRequestSchema,
   awardCreditsResponseSchema,
   createReportSchema,
@@ -17,7 +18,14 @@ import {
   sectorSummarySchema,
   structuredIntelSnapshotSchema,
   accessStatusResponseSchema,
-  creditsLedgerResponseSchema
+  creditsLedgerResponseSchema,
+  notificationSchema,
+  worldSignalSchema,
+  knowledgeArticleSchema,
+  assistantReplySchema,
+  assistantQueryInputSchema,
+  profilePreferenceSchema,
+  updateProfilePreferenceInputSchema
 } from "@gin/shared";
 
 type SectorResponse = { sectors?: unknown };
@@ -27,6 +35,9 @@ type ReportResponse = { report?: unknown };
 type RoutesResponse = { routes?: unknown };
 type FactionResponse = { factions?: unknown };
 type SnapshotResponse = { snapshot?: unknown };
+type NotificationResponse = { notifications?: unknown; worldSignals?: unknown };
+type KnowledgeResponse = { articles?: unknown };
+type PreferenceResponse = { preference?: unknown };
 type ProfileConnectResponse = unknown;
 type AccessStatusPayload = unknown;
 type CreditsLedgerPayload = unknown;
@@ -109,6 +120,42 @@ export async function fetchLatestSnapshot() {
 
   const json = (await response.json()) as SnapshotResponse;
   return json.snapshot ? structuredIntelSnapshotSchema.parse(json.snapshot) : null;
+}
+
+export async function fetchNotifications(options?: { limit?: number; sector?: string; profileId?: string }) {
+  const url = new URL(`${getServerApiBaseUrl()}/api/notifications/latest`);
+  url.searchParams.set("limit", String(options?.limit ?? 8));
+  if (options?.sector) {
+    url.searchParams.set("sector", options.sector);
+  }
+  if (options?.profileId) {
+    url.searchParams.set("profileId", options.profileId);
+  }
+
+  const response = await fetch(url.toString(), { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error(`Failed to load notifications: ${response.status}`);
+  }
+
+  const json = (await response.json()) as NotificationResponse;
+  const notifications = notificationSchema.array().parse(json.notifications ?? []);
+  const worldSignals = worldSignalSchema.array().parse(json.worldSignals ?? []);
+  return { notifications, worldSignals };
+}
+
+export async function fetchKnowledgeArticles(limit = 6) {
+  const url = new URL(`${getServerApiBaseUrl()}/api/knowledge/articles`);
+  url.searchParams.set("limit", String(limit));
+
+  const response = await fetch(url.toString(), { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error(`Failed to load knowledge articles: ${response.status}`);
+  }
+
+  const json = (await response.json()) as KnowledgeResponse;
+  return knowledgeArticleSchema.array().parse(json.articles ?? []);
 }
 
 export async function recomputeRouteIntel() {
@@ -200,6 +247,54 @@ export async function connectProfile(walletAddress: string, auditWallet?: string
   return profileConnectResponseSchema.parse(json);
 }
 
+export async function fetchProfilePreferences(profileId: string, auditWallet?: string) {
+  const baseUrl = typeof window === "undefined" ? getServerApiBaseUrl() : getBrowserApiBaseUrl();
+  const url = new URL(`${baseUrl}/api/profiles/preferences`);
+  url.searchParams.set("profileId", profileId);
+
+  const response = await fetch(url.toString(), {
+    cache: "no-store",
+    headers: walletHeader(auditWallet)
+  });
+
+  if (!response.ok) {
+    const message = await extractError(response);
+    throw new Error(message);
+  }
+
+  const json = (await response.json()) as PreferenceResponse;
+  if (!json.preference) {
+    throw new Error("Preference payload missing from response");
+  }
+
+  return profilePreferenceSchema.parse(json.preference);
+}
+
+export async function updateProfilePreferences(payload: UpdateProfilePreferenceInput, auditWallet?: string) {
+  const body = updateProfilePreferenceInputSchema.parse(payload);
+
+  const response = await fetch(`${getBrowserApiBaseUrl()}/api/profiles/preferences`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(walletHeader(auditWallet) ?? {})
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const message = await extractError(response);
+    throw new Error(message);
+  }
+
+  const json = (await response.json()) as PreferenceResponse;
+  if (!json.preference) {
+    throw new Error("Preference payload missing from response");
+  }
+
+  return profilePreferenceSchema.parse(json.preference);
+}
+
 export async function publishArtifact(payload: PublishArtifactInput, auditWallet?: string) {
   const body = publishArtifactInputSchema.parse(payload);
 
@@ -281,6 +376,27 @@ export async function fetchCreditsLedger(profileId: string, limit = 25, auditWal
   const json = (await response.json()) as CreditsLedgerPayload;
   const parsed = creditsLedgerResponseSchema.parse(json);
   return parsed.events;
+}
+
+export async function queryAssistant(payload: { prompt: string; profileId?: string; sector?: string }, auditWallet?: string) {
+  const body = assistantQueryInputSchema.parse(payload);
+
+  const response = await fetch(`${getBrowserApiBaseUrl()}/api/assistant/query`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(walletHeader(auditWallet) ?? {})
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const message = await extractError(response);
+    throw new Error(message);
+  }
+
+  const json = await response.json();
+  return assistantReplySchema.parse(json);
 }
 
 async function extractError(response: Response) {
