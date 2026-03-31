@@ -33,10 +33,10 @@ export function SnapshotPanel({ snapshot, onCreateSnapshot }: SnapshotPanelProps
             <p className="status">Captured {new Date(snapshot.createdAt).toLocaleString()}</p>
             {snapshot.walrusBlobId ? (
               <p className="status">
-                Walrus blob <span>{snapshot.walrusBlobId}</span>
+                Artifact ID <span>{snapshot.walrusBlobId}</span>
               </p>
             ) : (
-              <p className="status">Stored locally (Walrus publishing disabled).</p>
+              <p className="status">Stored locally. Publish on-chain to anchor this snapshot.</p>
             )}
           </div>
         ) : (

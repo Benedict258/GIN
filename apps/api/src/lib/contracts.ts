@@ -40,13 +40,26 @@ export function deriveReportDigest(reportId: string, summary: string) {
   };
 }
 
+export function deriveArtifactDigest(artifactType: string, content: Record<string, unknown>) {
+  const payload = JSON.stringify(content);
+  const digestBytes = createHash("sha256")
+    .update(artifactType)
+    .update(payload)
+    .digest();
+
+  return {
+    bytes: Array.from(digestBytes),
+    hex: Buffer.from(digestBytes).toString("hex")
+  };
+}
+
 interface TransactionResult {
   digest: string;
 }
 
 export async function publishArtifactOnChain(params: {
   artifactType: string;
-  walrusBlobId: string;
+  artifactId: string;
   confidenceScore: number;
 }): Promise<TransactionResult> {
   if (simulateSui) {
@@ -62,7 +75,7 @@ export async function publishArtifactOnChain(params: {
       tx.object(adminCapId as string),
       tx.object(ginStateId as string),
       tx.pure.vector("u8", encodeString(params.artifactType)),
-      tx.pure.vector("u8", encodeString(params.walrusBlobId)),
+      tx.pure.vector("u8", encodeString(params.artifactId)),
       tx.pure.u64(BigInt(params.confidenceScore))
     ]
   });

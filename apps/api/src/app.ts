@@ -66,8 +66,13 @@ import type {
   ProfilePreferenceRow,
   WorldSignalRow
 } from "./lib/database.types.js";
-import { awardCreditsOnChain, deriveReportDigest, isSuiConfigured, publishArtifactOnChain } from "./lib/contracts.js";
-import { isWalrusConfigured, pinWalrusArtifact } from "./lib/walrus.js";
+import {
+  awardCreditsOnChain,
+  deriveArtifactDigest,
+  deriveReportDigest,
+  isSuiConfigured,
+  publishArtifactOnChain
+} from "./lib/contracts.js";
 import { deriveDedupeHashFromPayload, deriveDedupeHashFromRow, recomputeClusterTrust } from "./lib/trust.js";
 import { ensureConfidenceComponents } from "./lib/trust-components.js";
 import { recomputeSectorSummaries } from "./lib/sector-intel.js";
@@ -86,7 +91,6 @@ const DEFAULT_KNOWLEDGE_LIMIT = 6;
 const DEFAULT_WORLD_SIGNAL_LIMIT = 6;
 const SERVICE_VERSION = process.env.GIN_DEPLOY_VERSION ?? process.env.npm_package_version ?? "dev";
 const DISABLE_ONCHAIN_CREDITS = process.env.GIN_DISABLE_ONCHAIN === "true";
-const DISABLE_WALRUS = process.env.GIN_DISABLE_WALRUS === "true";
 
 const snapshotPayloadSchema = z.object({
   publishArtifact: z.boolean().optional(),
@@ -147,9 +151,9 @@ export function buildApp() {
     service: "gin-api",
     version: SERVICE_VERSION,
     suiEnabled: isSuiConfigured() && !DISABLE_ONCHAIN_CREDITS,
-    walrusEnabled: isWalrusConfigured() && !DISABLE_WALRUS,
+    walrusEnabled: false,
     onChainCreditsDisabled: DISABLE_ONCHAIN_CREDITS,
-    walrusDisabled: DISABLE_WALRUS,
+    walrusDisabled: true,
     timestamp: new Date().toISOString()
   }));
 
@@ -255,11 +259,6 @@ export function buildApp() {
   app.post("/api/intel/snapshots", async (request, reply) => {
     const payload = snapshotRequestSchema.parse(request.body ?? {});
 
-    if (payload.publishArtifact && !isWalrusConfigured()) {
-      reply.code(503);
-      return { error: "Walrus integration is disabled" };
-    }
-
     try {
       const snapshot = await createStructuredSnapshot({
         publishArtifact: payload.publishArtifact ?? false,
@@ -275,11 +274,6 @@ export function buildApp() {
 
   app.post("/api/automation/cycle", async (request, reply) => {
     const payload = automationRequestSchema.parse(request.body ?? {});
-
-    if (payload.publishArtifact && !isWalrusConfigured()) {
-      reply.code(503);
-      return { error: "Walrus integration is disabled" };
-    }
 
     try {
       const result = await runIntelAutomationCycle({
@@ -467,11 +461,6 @@ export function buildApp() {
       request.log.info({ auditWallet }, "Publish artifact request");
     }
 
-    if (!isWalrusConfigured() || DISABLE_WALRUS) {
-      reply.code(503);
-      return { error: "Walrus integration is disabled" };
-    }
-
     if (!isSuiConfigured() || DISABLE_ONCHAIN_CREDITS) {
       reply.code(503);
       return { error: "Sui integration is not configured" };
@@ -479,27 +468,24 @@ export function buildApp() {
 
     try {
       const content = await resolveArtifactContent(payload);
-      const walrusResult = await pinWalrusArtifact({
-        artifactType: payload.artifactType,
-        content,
-        confidenceScore: payload.confidenceScore
-      });
+      const digest = deriveArtifactDigest(payload.artifactType, content);
+      const artifactId = `artifact-${digest.hex}`;
 
       const transaction = await publishArtifactOnChain({
         artifactType: payload.artifactType,
-        walrusBlobId: walrusResult.blobId,
+        artifactId,
         confidenceScore: payload.confidenceScore
       });
 
       return publishArtifactResponseSchema.parse({
         artifactType: payload.artifactType,
         confidenceScore: payload.confidenceScore,
-        blobId: walrusResult.blobId,
-        proof: walrusResult.proof,
+        blobId: artifactId,
+        proof: undefined,
         transactionDigest: transaction.digest
       });
     } catch (error) {
-      request.log.error({ err: error }, "Failed to publish Walrus artifact");
+      request.log.error({ err: error }, "Failed to publish on-chain artifact");
       reply.code(500);
       return { error: "Failed to publish artifact" };
     }

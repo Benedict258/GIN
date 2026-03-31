@@ -9,8 +9,7 @@ import { supabase } from "./supabase.js";
 import { recomputeSectorSummaries } from "./sector-intel.js";
 import { recomputeRouteSummaries } from "./route-intel.js";
 import { recomputeFactionIntel } from "./faction-intel.js";
-import { isWalrusConfigured, pinWalrusArtifact } from "./walrus.js";
-import { publishArtifactOnChain, isSuiConfigured } from "./contracts.js";
+import { deriveArtifactDigest, publishArtifactOnChain, isSuiConfigured } from "./contracts.js";
 import type { StructuredIntelSnapshotRow } from "./database.types.js";
 
 export type StructuredSnapshotOptions = {
@@ -39,10 +38,10 @@ export async function createStructuredSnapshot(options: StructuredSnapshotOption
     generatedAt: new Date().toISOString()
   } satisfies Record<string, unknown>;
 
-  let walrusBlobId: string | undefined;
+  let artifactId: string | undefined;
 
-  if (options.publishArtifact && isWalrusConfigured()) {
-    walrusBlobId = await publishSnapshotArtifact({ payload, confidenceScore: options.confidenceScore });
+  if (options.publishArtifact) {
+    artifactId = await publishSnapshotArtifact({ payload, confidenceScore: options.confidenceScore });
   }
 
   const { data, error } = await supabase
@@ -50,7 +49,7 @@ export async function createStructuredSnapshot(options: StructuredSnapshotOption
     .insert({
       snapshot_type: "standard",
       payload,
-      walrus_blob_id: walrusBlobId ?? null,
+      walrus_blob_id: artifactId ?? null,
       route_count: routes.length,
       sector_count: sectors.length,
       faction_count: factions.length
@@ -137,35 +136,29 @@ async function fetchFactions() {
 }
 
 async function publishSnapshotArtifact(params: { payload: Record<string, unknown>; confidenceScore: number }) {
-  if (!isWalrusConfigured()) {
-    return undefined;
-  }
-
   if (!isSuiConfigured()) {
     return undefined;
   }
 
-  const walrusResult = await pinWalrusArtifact({
-    artifactType: "structured_snapshot",
-    confidenceScore: params.confidenceScore,
-    content: walrusArtifactContentSchema.parse({
-      title: `GIN Snapshot ${new Date().toISOString()}`,
-      summary: `Sectors: ${params.payload.sectors instanceof Array ? params.payload.sectors.length : 0}, Routes: ${
-        params.payload.routes instanceof Array ? params.payload.routes.length : 0
-      }, Factions: ${params.payload.factions instanceof Array ? params.payload.factions.length : 0}.`,
-      evidence: ["Snapshot includes verified sector, route, and faction intel"],
-      relatedLocations: extractLocations(params.payload),
-      metadata: params.payload
-    })
+  const content = walrusArtifactContentSchema.parse({
+    title: `GIN Snapshot ${new Date().toISOString()}`,
+    summary: `Sectors: ${params.payload.sectors instanceof Array ? params.payload.sectors.length : 0}, Routes: ${
+      params.payload.routes instanceof Array ? params.payload.routes.length : 0
+    }, Factions: ${params.payload.factions instanceof Array ? params.payload.factions.length : 0}.`,
+    evidence: ["Snapshot includes verified sector, route, and faction intel"],
+    relatedLocations: extractLocations(params.payload),
+    metadata: params.payload
   });
+  const digest = deriveArtifactDigest("structured_snapshot", content);
+  const artifactId = `artifact-${digest.hex}`;
 
   await publishArtifactOnChain({
     artifactType: "structured_snapshot",
-    walrusBlobId: walrusResult.blobId,
+    artifactId,
     confidenceScore: params.confidenceScore
   });
 
-  return walrusResult.blobId;
+  return artifactId;
 }
 
 function extractLocations(payload: Record<string, unknown>) {
