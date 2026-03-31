@@ -181,7 +181,7 @@ function buildDemoProfile(walletAddress: string) {
     {
       id: makeId(),
       profileId,
-      eventType: "report_confirmed",
+      eventType: "report_confirmed" as const,
       actionKey: "report_confirmed",
       delta: 120,
       importanceScore: 62,
@@ -195,7 +195,7 @@ function buildDemoProfile(walletAddress: string) {
     {
       id: makeId(),
       profileId,
-      eventType: "world_data_contributed",
+      eventType: "world_data_contributed" as const,
       actionKey: "world_data_contributed",
       delta: 40,
       importanceScore: 48,
