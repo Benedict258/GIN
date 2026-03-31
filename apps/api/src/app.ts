@@ -767,10 +767,12 @@ async function fetchNotifications(
       }
       return row.sector.toLowerCase() === sectorFilter;
     });
-    try {
-      await touchProfilePreferences(options.profileId, { lastSeenAt: new Date().toISOString() });
-    } catch (error) {
-      console.warn("Failed to touch profile preferences", error);
+    if (options?.profileId) {
+      try {
+        await touchProfilePreferences(options.profileId, { lastSeenAt: new Date().toISOString() });
+      } catch (error) {
+        console.warn("Failed to touch profile preferences", error);
+      }
     }
   }
 
