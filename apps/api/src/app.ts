@@ -80,6 +80,7 @@ import { recomputeRouteSummaries } from "./lib/route-intel.js";
 import { recomputeFactionIntel } from "./lib/faction-intel.js";
 import { createStructuredSnapshot } from "./lib/structured-intel.js";
 import { runIntelAutomationCycle } from "./lib/automation.js";
+import { refineReportInput } from "./lib/intel-refiner.js";
 
 const DEFAULT_SECTOR_LIMIT = 20;
 const DEFAULT_RECOMMENDATION_LIMIT = 10;
@@ -303,9 +304,10 @@ export function buildApp() {
     }
 
     try {
-      const report = await saveReport(payload);
-      await issueContributorCredits(report, payload, request.log);
-      await touchProfilePreferences(report.reporterId, { lastKnownSector: payload.location });
+      const refinedPayload = refineReportInput(payload);
+      const report = await saveReport(refinedPayload);
+      await issueContributorCredits(report, refinedPayload, request.log);
+      await touchProfilePreferences(report.reporterId, { lastKnownSector: refinedPayload.location });
       reply.code(201);
       return { report };
     } catch (error) {
