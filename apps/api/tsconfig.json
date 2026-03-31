@@ -1,12 +1,14 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "../..",
-    "rootDirs": ["src", "../../packages/shared/src"],
+    "rootDir": "src",
     "outDir": "dist",
     "noEmit": false,
     "lib": ["ES2022"],
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "@gin/shared": ["../../packages/shared/dist/index.d.ts"]
+    }
   },
   "include": ["src/**/*.ts"]
 }
