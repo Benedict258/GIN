@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useSmartObject } from "@evefrontier/dapp-kit";
+import { useSmartObject } from "@evefrontier/dapp-kit/hooks";
 import { useProfile } from "../hooks/useProfile";
 import { extractPanelPrivileges } from "../lib/access";
 

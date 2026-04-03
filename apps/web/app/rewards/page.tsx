@@ -10,6 +10,11 @@ const mockProofs = [
     label: "Verification Proof",
     digest: "7t2kR4e1p9d3m6x8z2s4n5b1c7v3a9q2m6t8s1",
     status: "Validation recorded"
+  },
+  {
+    label: "Artifact Published",
+    digest: "9a4hQ2m8d6t1s7c3k5p2n8v1b6z4m2t7r5q9",
+    status: "Artifact anchored"
   }
 ];
 

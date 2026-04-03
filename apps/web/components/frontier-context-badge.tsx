@@ -1,6 +1,6 @@
 "use client";
 
-import { useConnection, useSmartObject } from "@evefrontier/dapp-kit";
+import { useConnection, useSmartObject } from "@evefrontier/dapp-kit/hooks";
 
 export function FrontierContextBadge() {
   const { isConnected, walletAddress, handleConnect } = useConnection();

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useConnection } from "@evefrontier/dapp-kit";
+import { useConnection } from "@evefrontier/dapp-kit/hooks";
 import { useProfile } from "../hooks/useProfile";
 
 const EVENT_LABELS: Record<string, string> = {

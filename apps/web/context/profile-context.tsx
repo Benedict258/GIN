@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useConnection } from "@evefrontier/dapp-kit";
+import { useConnection } from "@evefrontier/dapp-kit/hooks";
 import type { AccessStatusResponse, CreditEvent, ProfileContext as ProfileContextType } from "@gin/shared";
 import { connectProfile, fetchAccessStatus, fetchCreditsLedger } from "../lib/api";
 

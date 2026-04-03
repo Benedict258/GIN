@@ -1,4 +1,5 @@
 import { fetchNotifications, fetchRecentReports, fetchRecommendations, fetchSectorIntel } from "../../lib/api";
+import { AssistantPanel } from "../../components/assistant-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -11,12 +12,45 @@ export default async function OverviewPage() {
   ]);
 
   const liveRecommendation = recommendations[0] ?? {
-    title: "Hold Ikora Corridor",
-    summary: "Verified scout traffic is thinning. Risk is moderate but stabilizing.",
-    confidenceScore: 71,
-    recommendedAction: "Maintain escort through Ikora, reroute heavy cargo to Nara Belt.",
-    evidence: ["2 hostile sightings in 30m", "3 confirmed trade lanes online"]
+    title: "Secure L-Point 5464 Corridor",
+    summary: "Multiple scout reports confirm increased activity near the L-Point 5464 relay.",
+    confidenceScore: 78,
+    recommendedAction: "Maintain escort detail through L-Point 5464 and reroute heavy cargo to the Nara Belt spur.",
+    evidence: ["Resource cluster staged at L-Point 5464", "Portal to Utopia Prime flagged for inspection"]
   };
+
+  const sectorList =
+    sectors.length > 0
+      ? sectors
+      : [
+          {
+            location: "L-Point 5464",
+            threatScore: 68,
+            opportunityScore: 54,
+            confidenceScore: 73,
+            verificationState: "emerging",
+            topSignals: ["jump_activity", "resource_cluster"],
+            updatedAt: new Date().toISOString()
+          },
+          {
+            location: "Jegou Relay",
+            threatScore: 82,
+            opportunityScore: 39,
+            confidenceScore: 79,
+            verificationState: "verified",
+            topSignals: ["enemy_sighting", "trade_signal"],
+            updatedAt: new Date().toISOString()
+          },
+          {
+            location: "Utopia Prime",
+            threatScore: 41,
+            opportunityScore: 72,
+            confidenceScore: 69,
+            verificationState: "emerging",
+            topSignals: ["resource_cluster", "safe_route"],
+            updatedAt: new Date().toISOString()
+          }
+        ];
 
   return (
     <div className="content-grid">
@@ -37,7 +71,7 @@ export default async function OverviewPage() {
         <ul className="summary-list">
           <li>
             <span>Verified Signals</span>
-            <strong>{sectors.filter((sector) => sector.verificationState === "verified").length}</strong>
+            <strong>{sectorList.filter((sector) => sector.verificationState === "verified").length}</strong>
           </li>
           <li>
             <span>Active Reports</span>
@@ -75,9 +109,9 @@ export default async function OverviewPage() {
 
       <section className="panel panel-wide">
         <p className="panel-label">Sector Signals</p>
-        {sectors.length ? (
+        {sectorList.length ? (
           <ul className="sector-list">
-            {sectors.slice(0, 6).map((sector) => (
+            {sectorList.slice(0, 6).map((sector) => (
               <li key={sector.location}>
                 <div>
                   <strong>{sector.location}</strong>
@@ -95,6 +129,8 @@ export default async function OverviewPage() {
           <p className="status">No verified sector intelligence yet.</p>
         )}
       </section>
+
+      <AssistantPanel />
     </div>
   );
 }

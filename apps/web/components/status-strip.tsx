@@ -1,6 +1,6 @@
 "use client";
 
-import { useConnection, useSmartObject } from "@evefrontier/dapp-kit";
+import { useConnection, useSmartObject } from "@evefrontier/dapp-kit/hooks";
 import { useProfile } from "../hooks/useProfile";
 
 export function StatusStrip() {

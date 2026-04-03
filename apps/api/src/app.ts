@@ -81,6 +81,7 @@ import { recomputeFactionIntel } from "./lib/faction-intel.js";
 import { createStructuredSnapshot } from "./lib/structured-intel.js";
 import { runIntelAutomationCycle } from "./lib/automation.js";
 import { refineReportInput } from "./lib/intel-refiner.js";
+import { isLlmConfigured, runGroqChat } from "./lib/llm-client.js";
 
 const DEFAULT_SECTOR_LIMIT = 20;
 const DEFAULT_RECOMMENDATION_LIMIT = 10;
@@ -304,7 +305,7 @@ export function buildApp() {
     }
 
     try {
-      const refinedPayload = refineReportInput(payload);
+      const refinedPayload = await refineReportInput(payload);
       const report = await saveReport(refinedPayload);
       await issueContributorCredits(report, refinedPayload, request.log);
       await touchProfilePreferences(report.reporterId, { lastKnownSector: refinedPayload.location });
@@ -1000,8 +1001,36 @@ async function buildAssistantReply(payload: z.infer<typeof assistantQueryInputSc
       ]
     : ["Submit a report", "Trigger automation cycle"];
 
+  const fallbackReply = replyParts.join(" ").trim();
+
+  if (isLlmConfigured()) {
+    const context = [
+      preferredSector ? `Preferred sector: ${preferredSector}` : "Preferred sector: none",
+      `Articles: ${fallbackArticles.map((article) => `${article.title} - ${article.summary}`).join(" | ")}`,
+      hotSignals.length
+        ? `Signals: ${hotSignals.map((signal) => `${signal.sector} - ${signal.summary} (${signal.confidenceScore}%)`).join(" | ")}`
+        : "Signals: none"
+    ].join("\n");
+
+    const llmReply = await runGroqChat({
+      system:
+        "You are GIN Advisor. Answer only using the provided context. If information is missing, say it is not available yet. Keep responses tactical and concise.",
+      user: `Question: ${payload.prompt}\n\nContext:\n${context}`,
+      temperature: 0.2,
+      maxTokens: 300
+    });
+
+    if (llmReply) {
+      return assistantReplySchema.parse({
+        reply: llmReply,
+        relatedArticles: fallbackArticles,
+        suggestedActions
+      });
+    }
+  }
+
   return assistantReplySchema.parse({
-    reply: replyParts.join(" ").trim(),
+    reply: fallbackReply,
     relatedArticles: fallbackArticles,
     suggestedActions
   });

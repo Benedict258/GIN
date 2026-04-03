@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition, type FormEvent } from "react";
+import { useSmartObject } from "@evefrontier/dapp-kit/hooks";
 import type { AccessStatusResponse, CreateReportInput, ContributorProfile, CreditEvent } from "@gin/shared";
 import { submitReport } from "../lib/api";
 import { useProfile } from "../hooks/useProfile";
@@ -23,6 +24,7 @@ export function ReportForm() {
   const [message, setMessage] = useState<string>("");
   const [isPending, startTransition] = useTransition();
   const profileState = useProfile();
+  const { assembly, assemblyOwner, tenant } = useSmartObject();
   const accessStatus = profileState.accessStatus;
   const ledgerEvents = profileState.ledger ?? [];
   const reporterId = profileState.profileContext?.profile.id ?? payload.reporterId;
@@ -64,7 +66,31 @@ export function ReportForm() {
 
     startTransition(async () => {
       try {
-        await submitReport(payload, profileState.walletAddress);
+        const enrichedPayload: CreateReportInput = {
+          ...payload,
+          metadata: {
+            ...(payload.metadata ?? {}),
+            assemblyContext: assembly
+              ? {
+                  name: assembly.name ?? null,
+                  objectId: (assembly as { id?: string; objectId?: string }).id ?? (assembly as { objectId?: string }).objectId ?? null,
+                  type: (assembly as { type?: string; assemblyType?: string }).type ?? (assembly as { assemblyType?: string }).assemblyType ?? null,
+                  tenant: tenant ?? null
+                }
+              : null,
+            playerContext: assemblyOwner
+              ? {
+                  name: (assemblyOwner as { name?: string }).name ?? null,
+                  role: (assemblyOwner as { role?: string }).role ?? null,
+                  faction: (assemblyOwner as { faction?: string }).faction ?? null,
+                  pack: (assemblyOwner as { pack?: string }).pack ?? null,
+                  tags: (assemblyOwner as { tags?: string[] }).tags ?? null
+                }
+              : null
+          }
+        };
+
+        await submitReport(enrichedPayload, profileState.walletAddress);
         setStatus("success");
         setMessage("Report submitted to GIN core intelligence.");
         resetForm();

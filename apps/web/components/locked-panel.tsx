@@ -1,6 +1,6 @@
 "use client";
 
-import { useConnection } from "@evefrontier/dapp-kit";
+import { useConnection } from "@evefrontier/dapp-kit/hooks";
 import { useProfile } from "../hooks/useProfile";
 
 interface LockedPanelProps {
