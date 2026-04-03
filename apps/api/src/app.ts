@@ -777,6 +777,9 @@ async function fetchWorldSignals(limit = DEFAULT_WORLD_SIGNAL_LIMIT, options?: {
     .limit(fetchLimit);
 
   if (error) {
+    if (isMissingTableError(error)) {
+      return [];
+    }
     throw new Error(error.message);
   }
 
@@ -884,6 +887,16 @@ async function upsertProfilePreferences(payload: UpdateProfilePreferenceInput) {
     .single();
 
   if (error || !data) {
+    if (error && isMissingTableError(error)) {
+      return mapProfilePreferenceRow({
+        profile_id: payload.profileId,
+        last_known_sector: payload.lastKnownSector ?? null,
+        alert_opt_in: typeof payload.alertOptIn === "boolean" ? payload.alertOptIn : true,
+        last_seen_at: nowIso,
+        created_at: nowIso,
+        updated_at: nowIso
+      } satisfies ProfilePreferenceRow);
+    }
     throw new Error(error?.message ?? "Failed to update profile preferences");
   }
 
@@ -898,6 +911,17 @@ async function ensureProfilePreferences(profileId: string) {
     .maybeSingle();
 
   if (error) {
+    if (isMissingTableError(error)) {
+      const nowIso = new Date().toISOString();
+      return {
+        profile_id: profileId,
+        last_known_sector: null,
+        alert_opt_in: true,
+        last_seen_at: nowIso,
+        created_at: nowIso,
+        updated_at: nowIso
+      } satisfies ProfilePreferenceRow;
+    }
     throw new Error(error.message);
   }
 
@@ -912,6 +936,17 @@ async function ensureProfilePreferences(profileId: string) {
     .single();
 
   if (insertError || !inserted) {
+    if (insertError && isMissingTableError(insertError)) {
+      const nowIso = new Date().toISOString();
+      return {
+        profile_id: profileId,
+        last_known_sector: null,
+        alert_opt_in: true,
+        last_seen_at: nowIso,
+        created_at: nowIso,
+        updated_at: nowIso
+      } satisfies ProfilePreferenceRow;
+    }
     throw new Error(insertError?.message ?? "Unable to create profile preferences");
   }
 
@@ -938,8 +973,21 @@ async function touchProfilePreferences(profileId?: string, params?: { lastKnownS
     .upsert({ profile_id: profileId, ...updates }, { onConflict: "profile_id" });
 
   if (error) {
+    if (isMissingTableError(error)) {
+      return;
+    }
     throw new Error(error.message);
   }
+}
+
+function isMissingTableError(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  if ("message" in error && typeof (error as { message?: string }).message === "string") {
+    return (error as { message: string }).message.includes("Could not find the table");
+  }
+  return false;
 }
 
 async function buildAssistantReply(payload: z.infer<typeof assistantQueryInputSchema>): Promise<AssistantReply> {
