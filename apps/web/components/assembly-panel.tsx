@@ -1,6 +1,9 @@
 "use client";
 
 import { useConnection, useSmartObject } from "@evefrontier/dapp-kit/hooks";
+import { useState, useTransition } from "react";
+import { useDAppKit } from "@mysten/dapp-kit-react";
+import { Transaction } from "@mysten/sui/transactions";
 import { useSearchParams } from "next/navigation";
 
 function resolveTenant(tenant: string | null) {
@@ -17,7 +20,25 @@ export function AssemblyPanel() {
   const itemId = resolveItemId(searchParams.get("itemId"));
   const { isConnected, handleConnect, walletAddress } = useConnection();
   const { assembly, loading } = useSmartObject();
+  const dAppKit = useDAppKit();
+  const [metadataName, setMetadataName] = useState("GIN STORAGE");
+  const [metadataDescription, setMetadataDescription] = useState("");
+  const [metadataUrl, setMetadataUrl] = useState("");
+  const [metadataStatus, setMetadataStatus] = useState<"idle" | "success" | "error">("idle");
+  const [metadataMessage, setMetadataMessage] = useState("");
+  const [isPending, startTransition] = useTransition();
   const suiNetwork = process.env.NEXT_PUBLIC_SUI_NETWORK ?? "testnet";
+  const storageUnitPackageId =
+    process.env.NEXT_PUBLIC_SSU_PACKAGE_ID ?? "0xd12a70c74c1e759445d6f209b01d43d860e97fcf2ef72ccbbd00afd828043f75";
+  const storageUnitObjectId =
+    process.env.NEXT_PUBLIC_EVE_FRONTIER_ITEM_ID ??
+    "0x1a817e321488ad8dc9287d2116f9e3172954f08e4863f6fbf84d869145b57bf7";
+  const ownerCapId =
+    process.env.NEXT_PUBLIC_SSU_OWNER_CAP_ID ?? "0x51c516e386590706377c0501c47630f132a8e924a2412536780509e1f02572ac";
+  const characterSharedObjectId =
+    process.env.NEXT_PUBLIC_SSU_CHARACTER_SHARED_ID ?? "0xd2f0c90cb501a6a67e32c1732d1074d891c3a952455111864301deaf3d698f85";
+  const characterInitialVersion =
+    process.env.NEXT_PUBLIC_SSU_CHARACTER_SHARED_VERSION ?? "810067465";
   const proofLinks = [
     {
       label: "Artifact publish",
@@ -31,6 +52,69 @@ export function AssemblyPanel() {
 
   const buildExplorerUrl = (digest: string) =>
     `https://explorer.sui.io/transaction/${digest}?network=${suiNetwork}`;
+
+  async function handleMetadataUpdate() {
+    setMetadataStatus("idle");
+    setMetadataMessage("");
+
+    if (!isConnected) {
+      setMetadataStatus("error");
+      setMetadataMessage("Connect EVE Vault before updating the storage metadata.");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const tx = new Transaction();
+        const sharedCharacter = tx.sharedObjectRef({
+          objectId: characterSharedObjectId,
+          initialSharedVersion: BigInt(characterInitialVersion),
+          mutable: true
+        });
+        const ownerCap = tx.object(ownerCapId);
+
+        const borrowedCap = tx.moveCall({
+          target: `${storageUnitPackageId}::character::borrow_owner_cap`,
+          typeArguments: [`${storageUnitPackageId}::storage_unit::StorageUnit`],
+          arguments: [sharedCharacter, ownerCap]
+        });
+
+        const storageUnitShared = tx.sharedObjectRef({
+          objectId: storageUnitObjectId,
+          initialSharedVersion: BigInt(characterInitialVersion),
+          mutable: true
+        });
+
+        tx.moveCall({
+          target: `${storageUnitPackageId}::storage_unit::update_metadata_name`,
+          arguments: [storageUnitShared, borrowedCap, tx.pure.string(metadataName.trim())]
+        });
+
+        tx.moveCall({
+          target: `${storageUnitPackageId}::storage_unit::update_metadata_description`,
+          arguments: [storageUnitShared, borrowedCap, tx.pure.string(metadataDescription.trim())]
+        });
+
+        tx.moveCall({
+          target: `${storageUnitPackageId}::storage_unit::update_metadata_url`,
+          arguments: [storageUnitShared, borrowedCap, tx.pure.string(metadataUrl.trim())]
+        });
+
+        tx.moveCall({
+          target: `${storageUnitPackageId}::character::return_owner_cap`,
+          typeArguments: [`${storageUnitPackageId}::storage_unit::StorageUnit`],
+          arguments: [sharedCharacter, borrowedCap, ownerCap]
+        });
+
+        await dAppKit.signAndExecute({ transaction: tx });
+        setMetadataStatus("success");
+        setMetadataMessage("Storage metadata updated on-chain.");
+      } catch (error) {
+        setMetadataStatus("error");
+        setMetadataMessage(error instanceof Error ? error.message : "Failed to update metadata");
+      }
+    });
+  }
 
   return (
     <article className="panel">
@@ -75,6 +159,29 @@ export function AssemblyPanel() {
           No assembly payload is available yet for the current item context.
         </p>
       ) : null}
+      <section className="status-card">
+        <p>SSU Metadata Controls</p>
+        <div className="form-grid">
+          <label className="field-group">
+            <span>Name</span>
+            <input value={metadataName} onChange={(event) => setMetadataName(event.target.value)} />
+          </label>
+          <label className="field-group">
+            <span>Description</span>
+            <input value={metadataDescription} onChange={(event) => setMetadataDescription(event.target.value)} />
+          </label>
+          <label className="field-group field-full">
+            <span>URL</span>
+            <input value={metadataUrl} onChange={(event) => setMetadataUrl(event.target.value)} />
+          </label>
+          <button className="action-button" type="button" onClick={handleMetadataUpdate} disabled={isPending}>
+            {isPending ? "Updating..." : "Update SSU Metadata"}
+          </button>
+        </div>
+        {metadataStatus !== "idle" ? (
+          <p className={`status ${metadataStatus === "error" ? "status-error" : "status-success"}`}>{metadataMessage}</p>
+        ) : null}
+      </section>
       <section className="status-card">
         <p>Recent on-chain proofs</p>
         <ul className="info-list">

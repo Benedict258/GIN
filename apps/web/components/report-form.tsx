@@ -9,7 +9,7 @@ import type { ProfileStatus as ProfileStatusType } from "../context/profile-cont
 
 const defaultPayload: CreateReportInput = {
   reporterId: "",
-  location: "sector-alpha",
+  location: "6RG-Y-T4",
   signalType: "enemy_sighting",
   summary: "",
   source: "player",

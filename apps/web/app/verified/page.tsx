@@ -13,10 +13,10 @@ export default async function VerifiedPage() {
       ? sectors.filter((sector) => sector.verificationState === "verified")
       : [
           {
-            location: "Jegou Relay",
-            threatScore: 82,
-            opportunityScore: 39,
-            confidenceScore: 79,
+            location: "6RG-Y-T4",
+            threatScore: 84,
+            opportunityScore: 38,
+            confidenceScore: 81,
             verificationState: "verified",
             topSignals: ["enemy_sighting", "trade_signal"],
             updatedAt: new Date().toISOString()
@@ -27,25 +27,25 @@ export default async function VerifiedPage() {
       ? reports.filter((report) => report.verificationState !== "verified").slice(0, 6)
       : [
           {
-            id: "pending-lp-5464",
-            location: "L-Point 5464",
-            summary: "Resource cluster detected near relay staging grid. Builder foam available at gate site.",
+            id: "pending-lp-456",
+            location: "L6M-Y-M4",
+            summary: "Resource cluster detected at L-Point 456. Builder foam available at the relay cache.",
             signalType: "resource_cluster",
             confidenceScore: 66,
             verificationState: "emerging"
           },
           {
-            id: "pending-portal-utopia",
-            location: "Utopia Prime",
-            summary: "Portal to secondary solar node active; traffic spike noted by multiple scouts.",
+            id: "pending-portal-mno",
+            location: "MNO-Y-05",
+            summary: "Portal to secondary solar route active; traffic spike noted by multiple scouts.",
             signalType: "jump_activity",
             confidenceScore: 61,
             verificationState: "emerging"
           },
           {
             id: "pending-hostile-ikora",
-            location: "Ikora Corridor",
-            summary: "High threat level flagged after repeated hostile pings on convoy path.",
+            location: "6RG-Y-T4",
+            summary: "High threat level flagged after repeated hostile pings near Moon P4.",
             signalType: "enemy_sighting",
             confidenceScore: 72,
             verificationState: "contested"
