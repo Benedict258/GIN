@@ -17,6 +17,8 @@ const packageId = process.env.GIN_MOVE_PACKAGE_ID;
 const adminCapId = process.env.GIN_MOVE_ADMIN_CAP_ID;
 const ginStateId = process.env.GIN_MOVE_STATE_ID;
 const privateKey = process.env.GIN_SUI_PRIVATE_KEY;
+const ssuExtensionPackageId = process.env.GIN_SSU_EXTENSION_PACKAGE_ID;
+const ssuExtensionStateId = process.env.GIN_SSU_EXTENSION_STATE_ID;
 const simulateSui = process.env.GIN_SIMULATE_SUI === "true";
 const suiNetwork = (process.env.SUI_NETWORK as SuiNetwork | undefined) ?? "testnet";
 const suiRpcUrl = process.env.SUI_RPC_URL ?? DEFAULT_FULLNODE_URLS[suiNetwork];
@@ -129,6 +131,47 @@ export async function awardCreditsOnChain(params: {
   return { digest: result.digest };
 }
 
+export async function recordSsuSubmissionOnChain(params: {
+  storageUnitId: string;
+  digestHex: string;
+  confidenceScore: number;
+}): Promise<TransactionResult> {
+  if (simulateSui) {
+    return simulateTransaction("ssu-submission");
+  }
+
+  if (!ssuExtensionPackageId || !ssuExtensionStateId) {
+    throw new Error("SSU extension package or state ID is not configured");
+  }
+
+  ensureSuiConfig();
+
+  const tx = new Transaction();
+  const digestBytes = hexToBytes(params.digestHex);
+
+  tx.moveCall({
+    target: `${ssuExtensionPackageId}::gin_extension::record_submission`,
+    arguments: [
+      tx.object(ssuExtensionStateId),
+      tx.object(params.storageUnitId),
+      tx.pure.vector("u8", digestBytes),
+      tx.pure.u64(BigInt(params.confidenceScore))
+    ]
+  });
+
+  const signer = getKeypair();
+
+  const result = await suiClient.signAndExecuteTransaction({
+    signer,
+    transaction: tx,
+    options: {
+      showEffects: true
+    }
+  });
+
+  return { digest: result.digest };
+}
+
 function ensureSuiConfig() {
   if (!simulateSui && !isSuiConfigured()) {
     throw new Error("Sui integration is not configured");
@@ -173,6 +216,11 @@ function normalizePrivateKey(value: string) {
 
 function encodeString(value: string) {
   return Array.from(new TextEncoder().encode(value));
+}
+
+function hexToBytes(hex: string) {
+  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+  return Array.from(Buffer.from(clean, "hex"));
 }
 
 function simulateTransaction(prefix: string): TransactionResult {
