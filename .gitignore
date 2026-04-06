@@ -10,3 +10,9 @@ coverage
 apps/api/dist
 apps/api/.env
 supabase/.temp
+
+# Move/Sui generated build artifacts
+contracts/**/build/
+
+# Local checkout used for dependency inspection
+world-contracts-check/
