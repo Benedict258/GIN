@@ -16,3 +16,7 @@ contracts/**/build/
 
 # Local checkout used for dependency inspection
 world-contracts-check/
+
+# Local run logs and scratch notes
+*.log
+text.txt
