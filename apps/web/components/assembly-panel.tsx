@@ -117,7 +117,7 @@ export function AssemblyPanel() {
           arguments: [sharedCharacter, borrowedCap, ownerCap]
         });
 
-        await dAppKit.signAndExecute({ transaction: tx });
+        await dAppKit.signAndExecuteTransaction({ transaction: tx });
         setMetadataStatus("success");
         setMetadataMessage("Storage metadata updated on-chain.");
       } catch (error) {
@@ -175,7 +175,7 @@ export function AssemblyPanel() {
           arguments: [sharedCharacter, borrowedCap, ownerCap]
         });
 
-        await dAppKit.signAndExecute({ transaction: tx });
+        await dAppKit.signAndExecuteTransaction({ transaction: tx });
         setOnlineStatus("success");
         setOnlineMessage("Storage unit is now online.");
       } catch (error) {
@@ -235,7 +235,7 @@ export function AssemblyPanel() {
           arguments: [sharedCharacter, borrowedCap, ownerCap]
         });
 
-        await dAppKit.signAndExecute({ transaction: tx });
+        await dAppKit.signAndExecuteTransaction({ transaction: tx });
         setExtensionStatus("success");
         setExtensionMessage("Storage unit extension authorized.");
       } catch (error) {
