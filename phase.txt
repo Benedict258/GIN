@@ -1,0 +1,28 @@
+Next steps, in order:
+
+Publish the SSU extension
+
+Build and publish contracts/gin-ssu-extension.
+Capture:
+GIN_SSU_EXTENSION_PACKAGE_ID
+GIN_SSU_EXTENSION_STATE_ID
+Auth witness type: 0x<PKG>::gin_extension::GinAuth
+Set env and authorize
+
+Set the three values above in .env and your deployment env.
+Use the Authorize Extension button in the Assembly panel.
+Bring SSU online
+
+Use Bring SSU Online.
+If it fails, update NEXT_PUBLIC_SSU_SHARED_VERSION to the latest from Sui explorer.
+Run Supabase migrations
+
+Apply 0009_demo_locations.sql (and 0007/0008 if not yet applied).
+Confirm world_signals + knowledge_articles rows exist.
+Test live World API feed
+
+Confirm EVE_FRONTIER_WORLD_API_URL is set.
+Check /api/notifications/latest returns world signals mixed with demo ones.
+Wire record_submission UI
+
+Implemented in the submit form: after a report is submitted, the web app can now record it on the SSU via /api/contracts/record-ssu-submission.

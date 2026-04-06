@@ -1,3 +1,17 @@
+create table if not exists public.world_signals (
+  id uuid primary key default gen_random_uuid(),
+  sector text not null,
+  signal_type signal_type not null default 'manual_report',
+  summary text not null,
+  confidence_score integer not null default 50 check (confidence_score between 0 and 100),
+  metadata jsonb not null default '{}'::jsonb,
+  observed_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists world_signals_sector_idx on public.world_signals(sector);
+create index if not exists world_signals_observed_idx on public.world_signals(observed_at desc);
+
 insert into public.world_signals (sector, signal_type, summary, confidence_score, metadata)
 values
   (
