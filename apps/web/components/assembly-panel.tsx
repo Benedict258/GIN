@@ -79,7 +79,7 @@ export function AssemblyPanel() {
         const tx = new Transaction();
         const sharedCharacter = tx.sharedObjectRef({
           objectId: characterSharedObjectId,
-          initialSharedVersion: BigInt(characterInitialVersion),
+          initialSharedVersion: Number(characterInitialVersion),
           mutable: true
         });
         const ownerCap = tx.object(ownerCapId);
@@ -92,7 +92,7 @@ export function AssemblyPanel() {
 
         const storageUnitShared = tx.sharedObjectRef({
           objectId: storageUnitObjectId,
-          initialSharedVersion: BigInt(characterInitialVersion),
+          initialSharedVersion: Number(characterInitialVersion),
           mutable: true
         });
 
@@ -142,7 +142,7 @@ export function AssemblyPanel() {
         const tx = new Transaction();
         const sharedCharacter = tx.sharedObjectRef({
           objectId: characterSharedObjectId,
-          initialSharedVersion: BigInt(characterInitialVersion),
+          initialSharedVersion: Number(characterInitialVersion),
           mutable: true
         });
         const ownerCap = tx.object(ownerCapId);
@@ -155,7 +155,7 @@ export function AssemblyPanel() {
 
         const storageUnitShared = tx.sharedObjectRef({
           objectId: storageUnitObjectId,
-          initialSharedVersion: BigInt(storageUnitSharedVersion),
+          initialSharedVersion: Number(storageUnitSharedVersion),
           mutable: true
         });
 
@@ -206,7 +206,7 @@ export function AssemblyPanel() {
         const tx = new Transaction();
         const sharedCharacter = tx.sharedObjectRef({
           objectId: characterSharedObjectId,
-          initialSharedVersion: BigInt(characterInitialVersion),
+          initialSharedVersion: Number(characterInitialVersion),
           mutable: true
         });
         const ownerCap = tx.object(ownerCapId);
@@ -219,7 +219,7 @@ export function AssemblyPanel() {
 
         const storageUnitShared = tx.sharedObjectRef({
           objectId: storageUnitObjectId,
-          initialSharedVersion: BigInt(storageUnitSharedVersion),
+          initialSharedVersion: Number(storageUnitSharedVersion),
           mutable: true
         });
 
