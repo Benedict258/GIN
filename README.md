@@ -41,6 +41,25 @@ Implemented so far:
 
 Copy `.env.example` into your local environment and fill in the real values when ready.
 
+## SSU Extension (Utopia)
+
+GIN includes a Move package scaffold for Smart Storage Unit extensions:
+
+- `contracts/gin-ssu-extension`
+
+It defines:
+
+- `GinAuth` witness type for extension authorization
+- `authorize_on_storage_unit` entry
+- owner-only deposit/withdraw wrappers
+- `record_submission` event for intel references
+
+Set these env vars after you publish the extension:
+
+- `GIN_SSU_EXTENSION_PACKAGE_ID`
+- `GIN_SSU_EXTENSION_STATE_ID`
+- `NEXT_PUBLIC_SSU_EXTENSION_AUTH_TYPE`
+
 ## Verification
 
 Verified successfully:

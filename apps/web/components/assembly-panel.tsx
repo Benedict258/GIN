@@ -27,18 +27,29 @@ export function AssemblyPanel() {
   const [metadataStatus, setMetadataStatus] = useState<"idle" | "success" | "error">("idle");
   const [metadataMessage, setMetadataMessage] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [onlineStatus, setOnlineStatus] = useState<"idle" | "success" | "error">("idle");
+  const [onlineMessage, setOnlineMessage] = useState("");
+  const [extensionStatus, setExtensionStatus] = useState<"idle" | "success" | "error">("idle");
+  const [extensionMessage, setExtensionMessage] = useState("");
   const suiNetwork = process.env.NEXT_PUBLIC_SUI_NETWORK ?? "testnet";
   const storageUnitPackageId =
     process.env.NEXT_PUBLIC_SSU_PACKAGE_ID ?? "0xd12a70c74c1e759445d6f209b01d43d860e97fcf2ef72ccbbd00afd828043f75";
   const storageUnitObjectId =
     process.env.NEXT_PUBLIC_EVE_FRONTIER_ITEM_ID ??
     "0x1a817e321488ad8dc9287d2116f9e3172954f08e4863f6fbf84d869145b57bf7";
+  const storageUnitSharedVersion =
+    process.env.NEXT_PUBLIC_SSU_SHARED_VERSION ?? "812145617";
   const ownerCapId =
     process.env.NEXT_PUBLIC_SSU_OWNER_CAP_ID ?? "0x51c516e386590706377c0501c47630f132a8e924a2412536780509e1f02572ac";
   const characterSharedObjectId =
     process.env.NEXT_PUBLIC_SSU_CHARACTER_SHARED_ID ?? "0xd2f0c90cb501a6a67e32c1732d1074d891c3a952455111864301deaf3d698f85";
   const characterInitialVersion =
     process.env.NEXT_PUBLIC_SSU_CHARACTER_SHARED_VERSION ?? "810067465";
+  const networkNodeId =
+    process.env.NEXT_PUBLIC_GIN_NETWORK_NODE_ID ?? "0x44cbc4349a683883f0266a617b1c8258916c33a135543a9b6c54325969d2cf25";
+  const energyConfigId =
+    process.env.NEXT_PUBLIC_EVE_FRONTIER_ENERGY_CONFIG_ID ?? "0x9285364e8104c04380d9cc4a001bbdfc81a554aad441c2909c2d3bd52a0c9c62";
+  const extensionAuthType = process.env.NEXT_PUBLIC_SSU_EXTENSION_AUTH_TYPE ?? "";
   const proofLinks = [
     {
       label: "Artifact publish",
@@ -116,6 +127,124 @@ export function AssemblyPanel() {
     });
   }
 
+  async function handleBringOnline() {
+    setOnlineStatus("idle");
+    setOnlineMessage("");
+
+    if (!isConnected) {
+      setOnlineStatus("error");
+      setOnlineMessage("Connect EVE Vault before bringing the storage unit online.");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const tx = new Transaction();
+        const sharedCharacter = tx.sharedObjectRef({
+          objectId: characterSharedObjectId,
+          initialSharedVersion: BigInt(characterInitialVersion),
+          mutable: true
+        });
+        const ownerCap = tx.object(ownerCapId);
+
+        const borrowedCap = tx.moveCall({
+          target: `${storageUnitPackageId}::character::borrow_owner_cap`,
+          typeArguments: [`${storageUnitPackageId}::assembly::Assembly`],
+          arguments: [sharedCharacter, ownerCap]
+        });
+
+        const storageUnitShared = tx.sharedObjectRef({
+          objectId: storageUnitObjectId,
+          initialSharedVersion: BigInt(storageUnitSharedVersion),
+          mutable: true
+        });
+
+        tx.moveCall({
+          target: `${storageUnitPackageId}::assembly::online`,
+          arguments: [
+            storageUnitShared,
+            tx.object(networkNodeId),
+            tx.object(energyConfigId),
+            borrowedCap
+          ]
+        });
+
+        tx.moveCall({
+          target: `${storageUnitPackageId}::character::return_owner_cap`,
+          typeArguments: [`${storageUnitPackageId}::assembly::Assembly`],
+          arguments: [sharedCharacter, borrowedCap, ownerCap]
+        });
+
+        await dAppKit.signAndExecute({ transaction: tx });
+        setOnlineStatus("success");
+        setOnlineMessage("Storage unit is now online.");
+      } catch (error) {
+        setOnlineStatus("error");
+        setOnlineMessage(error instanceof Error ? error.message : "Failed to bring storage unit online");
+      }
+    });
+  }
+
+  async function handleAuthorizeExtension() {
+    setExtensionStatus("idle");
+    setExtensionMessage("");
+
+    if (!extensionAuthType) {
+      setExtensionStatus("error");
+      setExtensionMessage("Extension auth type not configured.");
+      return;
+    }
+
+    if (!isConnected) {
+      setExtensionStatus("error");
+      setExtensionMessage("Connect EVE Vault before authorizing the extension.");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const tx = new Transaction();
+        const sharedCharacter = tx.sharedObjectRef({
+          objectId: characterSharedObjectId,
+          initialSharedVersion: BigInt(characterInitialVersion),
+          mutable: true
+        });
+        const ownerCap = tx.object(ownerCapId);
+
+        const borrowedCap = tx.moveCall({
+          target: `${storageUnitPackageId}::character::borrow_owner_cap`,
+          typeArguments: [`${storageUnitPackageId}::storage_unit::StorageUnit`],
+          arguments: [sharedCharacter, ownerCap]
+        });
+
+        const storageUnitShared = tx.sharedObjectRef({
+          objectId: storageUnitObjectId,
+          initialSharedVersion: BigInt(storageUnitSharedVersion),
+          mutable: true
+        });
+
+        tx.moveCall({
+          target: `${storageUnitPackageId}::storage_unit::authorize_extension`,
+          typeArguments: [extensionAuthType],
+          arguments: [storageUnitShared, borrowedCap]
+        });
+
+        tx.moveCall({
+          target: `${storageUnitPackageId}::character::return_owner_cap`,
+          typeArguments: [`${storageUnitPackageId}::storage_unit::StorageUnit`],
+          arguments: [sharedCharacter, borrowedCap, ownerCap]
+        });
+
+        await dAppKit.signAndExecute({ transaction: tx });
+        setExtensionStatus("success");
+        setExtensionMessage("Storage unit extension authorized.");
+      } catch (error) {
+        setExtensionStatus("error");
+        setExtensionMessage(error instanceof Error ? error.message : "Failed to authorize extension");
+      }
+    });
+  }
+
   return (
     <article className="panel">
       <p className="panel-label">EVE Frontier dApp Kit</p>
@@ -159,6 +288,26 @@ export function AssemblyPanel() {
           No assembly payload is available yet for the current item context.
         </p>
       ) : null}
+      <section className="status-card">
+        <p>Assembly Power</p>
+        <p className="status">Bring the SSU online using the network node and energy config.</p>
+        <button className="action-button" type="button" onClick={handleBringOnline} disabled={isPending}>
+          {isPending ? "Bringing online..." : "Bring SSU Online"}
+        </button>
+        {onlineStatus !== "idle" ? (
+          <p className={`status ${onlineStatus === "error" ? "status-error" : "status-success"}`}>{onlineMessage}</p>
+        ) : null}
+      </section>
+      <section className="status-card">
+        <p>Extension Authorization</p>
+        <p className="status">Authorize a storage unit extension once you have the Auth witness type.</p>
+        <button className="action-button" type="button" onClick={handleAuthorizeExtension} disabled={isPending}>
+          {isPending ? "Authorizing..." : "Authorize Extension"}
+        </button>
+        {extensionStatus !== "idle" ? (
+          <p className={`status ${extensionStatus === "error" ? "status-error" : "status-success"}`}>{extensionMessage}</p>
+        ) : null}
+      </section>
       <section className="status-card">
         <p>SSU Metadata Controls</p>
         <div className="form-grid">
