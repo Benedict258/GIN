@@ -326,6 +326,18 @@ export const awardCreditsResponseSchema = z.object({
   reportDigestHex: z.string().min(1)
 });
 
+export const recordSsuSubmissionRequestSchema = z.object({
+  reportId: z.string().uuid(),
+  storageUnitId: z.string().min(1)
+});
+
+export const recordSsuSubmissionResponseSchema = z.object({
+  reportId: z.string().uuid(),
+  storageUnitId: z.string().min(1),
+  reportDigestHex: z.string().min(1),
+  transactionDigest: z.string().min(1)
+});
+
 export const healthResponseSchema = z.object({
   status: z.literal("ok"),
   service: z.string(),

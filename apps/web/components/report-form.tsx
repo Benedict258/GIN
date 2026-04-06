@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition, type FormEvent } from "react";
 import { useSmartObject } from "@evefrontier/dapp-kit/hooks";
 import type { AccessStatusResponse, CreateReportInput, ContributorProfile, CreditEvent } from "@gin/shared";
-import { submitReport } from "../lib/api";
+import { recordSsuSubmission, submitReport } from "../lib/api";
 import { useProfile } from "../hooks/useProfile";
 import type { ProfileStatus as ProfileStatusType } from "../context/profile-context";
 
@@ -22,6 +22,9 @@ export function ReportForm() {
   const [payload, setPayload] = useState<CreateReportInput>(defaultPayload);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [message, setMessage] = useState<string>("");
+  const [lastSubmittedReport, setLastSubmittedReport] = useState<{ id: string; confidenceScore: number } | null>(null);
+  const [ssuStatus, setSsuStatus] = useState<"idle" | "success" | "error">("idle");
+  const [ssuMessage, setSsuMessage] = useState<string>("");
   const [isPending, startTransition] = useTransition();
   const profileState = useProfile();
   const { assembly, assemblyOwner, tenant } = useSmartObject();
@@ -90,14 +93,57 @@ export function ReportForm() {
           }
         };
 
-        await submitReport(enrichedPayload, profileState.walletAddress);
+        const report = await submitReport(enrichedPayload, profileState.walletAddress);
         setStatus("success");
         setMessage("Report submitted to GIN core intelligence.");
+        setLastSubmittedReport({ id: report.id, confidenceScore: report.confidenceScore });
+        setSsuStatus("idle");
+        setSsuMessage("");
         resetForm();
         void profileState.refresh();
       } catch (error) {
         setStatus("error");
         setMessage(error instanceof Error ? error.message : "Failed to send report");
+      }
+    });
+  }
+
+  async function handleRecordToSsu() {
+    if (!lastSubmittedReport) {
+      setSsuStatus("error");
+      setSsuMessage("Submit a report first.");
+      return;
+    }
+
+    const storageUnitId =
+      process.env.NEXT_PUBLIC_EVE_FRONTIER_ITEM_ID ??
+      (assembly as { id?: string; objectId?: string } | null)?.id ??
+      (assembly as { id?: string; objectId?: string } | null)?.objectId ??
+      "";
+
+    if (!storageUnitId) {
+      setSsuStatus("error");
+      setSsuMessage("Storage unit ID is not configured.");
+      return;
+    }
+
+    setSsuStatus("idle");
+    setSsuMessage("");
+
+    startTransition(async () => {
+      try {
+        const result = await recordSsuSubmission(
+          {
+            reportId: lastSubmittedReport.id,
+            storageUnitId
+          },
+          profileState.walletAddress
+        );
+        setSsuStatus("success");
+        setSsuMessage(`Recorded on SSU. Tx ${result.transactionDigest}`);
+      } catch (error) {
+        setSsuStatus("error");
+        setSsuMessage(error instanceof Error ? error.message : "Failed to record SSU submission");
       }
     });
   }
@@ -225,6 +271,21 @@ export function ReportForm() {
 
         {status !== "idle" ? (
           <p className={`status ${status === "error" ? "status-error" : "status-success"}`}>{message}</p>
+        ) : null}
+
+        {lastSubmittedReport ? (
+          <section className="status-card">
+            <p className="panel-label">SSU Recording</p>
+            <p className="status">
+              Latest report ready for SSU anchoring. Confidence <strong>{lastSubmittedReport.confidenceScore}</strong>
+            </p>
+            <button className="action-button" type="button" onClick={handleRecordToSsu} disabled={isPending}>
+              {isPending ? "Recording..." : "Record Submission on SSU"}
+            </button>
+            {ssuStatus !== "idle" ? (
+              <p className={`status ${ssuStatus === "error" ? "status-error" : "status-success"}`}>{ssuMessage}</p>
+            ) : null}
+          </section>
         ) : null}
     </article>
   );

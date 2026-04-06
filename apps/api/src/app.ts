@@ -29,6 +29,8 @@ import {
   notificationSchema,
   createKnowledgeArticleSchema,
   knowledgeArticleSchema,
+  recordSsuSubmissionRequestSchema,
+  recordSsuSubmissionResponseSchema,
   profilePreferenceSchema,
   updateProfilePreferenceInputSchema,
   worldSignalSchema,
@@ -71,7 +73,8 @@ import {
   deriveArtifactDigest,
   deriveReportDigest,
   isSuiConfigured,
-  publishArtifactOnChain
+  publishArtifactOnChain,
+  recordSsuSubmissionOnChain
 } from "./lib/contracts.js";
 import { deriveDedupeHashFromPayload, deriveDedupeHashFromRow, recomputeClusterTrust } from "./lib/trust.js";
 import { ensureConfidenceComponents } from "./lib/trust-components.js";
@@ -82,6 +85,7 @@ import { createStructuredSnapshot } from "./lib/structured-intel.js";
 import { runIntelAutomationCycle } from "./lib/automation.js";
 import { refineReportInput } from "./lib/intel-refiner.js";
 import { isLlmConfigured, runGroqChat } from "./lib/llm-client.js";
+import { fetchLiveWorldSignals } from "./lib/world-api.js";
 
 const DEFAULT_SECTOR_LIMIT = 20;
 const DEFAULT_RECOMMENDATION_LIMIT = 10;
@@ -539,6 +543,41 @@ export function buildApp() {
     }
   });
 
+  app.post("/api/contracts/record-ssu-submission", async (request, reply) => {
+    const payload = recordSsuSubmissionRequestSchema.parse(request.body);
+    const auditWallet = resolveAuditWallet(request);
+    if (auditWallet) {
+      request.log.info({ auditWallet, reportId: payload.reportId }, "SSU submission record request");
+    }
+
+    if (!isSuiConfigured()) {
+      reply.code(503);
+      return { error: "Sui integration is not configured" };
+    }
+
+    try {
+      const reportRow = await fetchReportRowById(payload.reportId);
+      const digest = deriveReportDigest(reportRow.id, reportRow.summary);
+
+      const transaction = await recordSsuSubmissionOnChain({
+        storageUnitId: payload.storageUnitId,
+        digestHex: digest.hex,
+        confidenceScore: reportRow.confidence_score
+      });
+
+      return recordSsuSubmissionResponseSchema.parse({
+        reportId: payload.reportId,
+        storageUnitId: payload.storageUnitId,
+        reportDigestHex: digest.hex,
+        transactionDigest: transaction.digest
+      });
+    } catch (error) {
+      request.log.error({ err: error }, "Failed to record SSU submission on-chain");
+      reply.code(500);
+      return { error: "Failed to record SSU submission" };
+    }
+  });
+
   app.post("/api/credits/award", async (request, reply) => {
     const payload = awardContributionCreditsSchema.parse(request.body);
     const auditWallet = resolveAuditWallet(request);
@@ -789,7 +828,11 @@ async function fetchWorldSignals(limit = DEFAULT_WORLD_SIGNAL_LIMIT, options?: {
     rows = rows.filter((row) => row.sector.toLowerCase() === sectorFilter);
   }
 
-  return rows.slice(0, limit).map((row) => mapWorldSignalRow(row));
+  const liveSignals = await fetchLiveWorldSignals({ sector: options?.sector, limit });
+  const mappedRows = rows.slice(0, limit).map((row) => mapWorldSignalRow(row));
+  const merged = [...liveSignals, ...mappedRows];
+
+  return merged.slice(0, limit);
 }
 
 async function createNotification(payload: CreateNotificationInput) {

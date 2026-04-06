@@ -25,7 +25,9 @@ import {
   assistantReplySchema,
   assistantQueryInputSchema,
   profilePreferenceSchema,
-  updateProfilePreferenceInputSchema
+  updateProfilePreferenceInputSchema,
+  recordSsuSubmissionRequestSchema,
+  recordSsuSubmissionResponseSchema
 } from "@gin/shared";
 
 type SectorResponse = { sectors?: unknown };
@@ -38,6 +40,7 @@ type SnapshotResponse = { snapshot?: unknown };
 type NotificationResponse = { notifications?: unknown; worldSignals?: unknown };
 type KnowledgeResponse = { articles?: unknown };
 type PreferenceResponse = { preference?: unknown };
+type RecordSsuSubmissionResponse = { reportId?: unknown; storageUnitId?: unknown; reportDigestHex?: unknown; transactionDigest?: unknown };
 type ProfileConnectResponse = unknown;
 type AccessStatusPayload = unknown;
 type CreditsLedgerPayload = unknown;
@@ -335,6 +338,27 @@ export async function awardCredits(payload: AwardCreditsRequest, auditWallet?: s
 
   const json = await response.json();
   return awardCreditsResponseSchema.parse(json) as AwardCreditsResponse;
+}
+
+export async function recordSsuSubmission(payload: { reportId: string; storageUnitId: string }, auditWallet?: string) {
+  const body = recordSsuSubmissionRequestSchema.parse(payload);
+
+  const response = await fetch(`${getBrowserApiBaseUrl()}/api/contracts/record-ssu-submission`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(walletHeader(auditWallet) ?? {})
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const message = await extractError(response);
+    throw new Error(message);
+  }
+
+  const json = (await response.json()) as RecordSsuSubmissionResponse;
+  return recordSsuSubmissionResponseSchema.parse(json);
 }
 
 export async function fetchAccessStatus(profileId: string, auditWallet?: string) {
