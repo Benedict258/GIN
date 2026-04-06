@@ -2,6 +2,8 @@ interface ImportMetaEnv {
   readonly NEXT_PUBLIC_GRAPHQL_ENDPOINT?: string;
   readonly NEXT_PUBLIC_WORLD_API_ENDPOINT?: string;
   readonly NEXT_PUBLIC_WORLD_PACKAGE_ID?: string;
+  readonly VITE_EVE_WORLD_PACKAGE_ID?: string;
+  readonly VITE_OBJECT_ID?: string;
   readonly [key: string]: string | undefined;
 }
 

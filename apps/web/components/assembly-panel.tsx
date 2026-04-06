@@ -10,6 +10,17 @@ function resolveTenant(tenant: string | null) {
   return tenant ?? process.env.NEXT_PUBLIC_EVE_FRONTIER_TENANT ?? "utopia";
 }
 
+function firstNonEmpty(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed) {
+      return trimmed;
+    }
+  }
+
+  return "";
+}
+
 function resolveItemId(itemId: string | null) {
   return itemId ?? process.env.NEXT_PUBLIC_EVE_FRONTIER_ITEM_ID ?? null;
 }
@@ -45,10 +56,14 @@ export function AssemblyPanel() {
     process.env.NEXT_PUBLIC_SSU_CHARACTER_SHARED_ID ?? "0xd2f0c90cb501a6a67e32c1732d1074d891c3a952455111864301deaf3d698f85";
   const characterInitialVersion =
     process.env.NEXT_PUBLIC_SSU_CHARACTER_SHARED_VERSION ?? "810067465";
-  const networkNodeId =
-    process.env.NEXT_PUBLIC_GIN_NETWORK_NODE_ID ?? "0x44cbc4349a683883f0266a617b1c8258916c33a135543a9b6c54325969d2cf25";
-  const energyConfigId =
-    process.env.NEXT_PUBLIC_EVE_FRONTIER_ENERGY_CONFIG_ID ?? "0x9285364e8104c04380d9cc4a001bbdfc81a554aad441c2909c2d3bd52a0c9c62";
+  const networkNodeId = firstNonEmpty(
+    process.env.NEXT_PUBLIC_GIN_NETWORK_NODE_ID,
+    process.env.GIN_NETWORK_NODE_ID
+  );
+  const energyConfigId = firstNonEmpty(
+    process.env.NEXT_PUBLIC_EVE_FRONTIER_ENERGY_CONFIG_ID,
+    process.env.EVE_FRONTIER_ENERGY_CONFIG_ID
+  );
   const extensionAuthType = process.env.NEXT_PUBLIC_SSU_EXTENSION_AUTH_TYPE ?? "";
   const proofLinks = [
     {
@@ -134,6 +149,18 @@ export function AssemblyPanel() {
     if (!isConnected) {
       setOnlineStatus("error");
       setOnlineMessage("Connect EVE Vault before bringing the storage unit online.");
+      return;
+    }
+
+    if (!networkNodeId) {
+      setOnlineStatus("error");
+      setOnlineMessage("GIN network node ID is not configured.");
+      return;
+    }
+
+    if (!energyConfigId) {
+      setOnlineStatus("error");
+      setOnlineMessage("EVE Frontier energy config ID is not configured.");
       return;
     }
 
