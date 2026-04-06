@@ -51,10 +51,15 @@ function PatchedSmartObjectProvider({ children }: { children: ReactNode }) {
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const lastDataHashRef = useRef<string | null>(null);
+  const hasCharacterLookupErrorRef = useRef<boolean>(false);
   const { isConnected } = useConnection();
 
   const fetchObjectData = useCallback(
     async (input: FetchObjectDataInput, isInitialFetch = false) => {
+      if (hasCharacterLookupErrorRef.current && !isInitialFetch) {
+        return;
+      }
+
       const hasItemId = "itemId" in input && "selectedTenant" in input;
       if (hasItemId) {
         if (!input.itemId || !input.selectedTenant) {
@@ -111,6 +116,7 @@ function PatchedSmartObjectProvider({ children }: { children: ReactNode }) {
           setAssembly(transformed);
 
           if (characterInfo) {
+            hasCharacterLookupErrorRef.current = false;
             setAssemblyOwner(transformToCharacter(characterInfo));
           } else {
             setAssemblyOwner(null);
@@ -118,8 +124,25 @@ function PatchedSmartObjectProvider({ children }: { children: ReactNode }) {
         }
         setError(null);
       } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to fetch object";
+        const isCharacterNotFound = message.toLowerCase().includes("character not found");
+
+        if (isCharacterNotFound) {
+          hasCharacterLookupErrorRef.current = true;
+          if (pollingRef.current) {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
+          }
+
+          setAssemblyOwner(null);
+          setError(
+            "Character not found for this object. Verify NEXT_PUBLIC_EVE_FRONTIER_ITEM_ID belongs to a character in your connected wallet and tenant."
+          );
+          return;
+        }
+
         console.error("[GIN] SmartObjectProvider: Query error", err);
-        setError(err instanceof Error ? err.message : "Failed to fetch object");
+        setError(message);
       } finally {
         if (isInitialFetch) {
           setLoading(false);
@@ -164,6 +187,7 @@ function PatchedSmartObjectProvider({ children }: { children: ReactNode }) {
       ? { objectId: selectedObjectId }
       : { itemId: selectedObjectId, selectedTenant };
 
+    hasCharacterLookupErrorRef.current = false;
     fetchObjectData(input, true);
     pollingRef.current = setInterval(() => {
       fetchObjectData(input, false);
@@ -185,6 +209,7 @@ function PatchedSmartObjectProvider({ children }: { children: ReactNode }) {
     if (!selectedObjectId) {
       return;
     }
+    hasCharacterLookupErrorRef.current = false;
     const input: FetchObjectDataInput = isObjectIdDirect
       ? { objectId: selectedObjectId }
       : { itemId: selectedObjectId, selectedTenant };
