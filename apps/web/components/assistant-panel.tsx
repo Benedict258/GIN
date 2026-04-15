@@ -4,6 +4,7 @@ import { useState, useTransition, type FormEvent } from "react";
 import type { AssistantReply } from "@gin/shared";
 import { queryAssistant, updateProfilePreferences } from "../lib/api";
 import { useProfile } from "../hooks/useProfile";
+import { isLocalProfileId, saveLocalFocus } from "../lib/demo-local";
 
 type Message = {
   role: "user" | "assistant";
@@ -54,6 +55,13 @@ export function AssistantPanel() {
     }
 
     try {
+      if (isLocalProfileId(profileId)) {
+        saveLocalFocus(profileId, focusSector.trim());
+        setStatus("idle");
+        setStatusMessage("Alert focus updated in local demo mode.");
+        return;
+      }
+
       await updateProfilePreferences({ profileId, lastKnownSector: focusSector.trim() }, profileState.walletAddress);
       setStatus("idle");
       setStatusMessage("Alert focus updated.");

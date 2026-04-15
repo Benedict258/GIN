@@ -8,6 +8,7 @@ import { useCharacterLimit } from "@/components/hooks/use-character-limit";
 import { cn } from "@/lib/utils";
 import { useProfile } from "../hooks/useProfile";
 import { updateProfilePreferences } from "../lib/api";
+import { isLocalProfileId, saveLocalFocus } from "../lib/demo-local";
 
 type SignalFocusFormProps = {
   className?: string;
@@ -33,6 +34,13 @@ export function SignalFocusForm({ className }: SignalFocusFormProps) {
     setMessage("Syncing alert preferences...");
 
     try {
+      if (isLocalProfileId(profileId)) {
+        saveLocalFocus(profileId, value.trim());
+        setStatus("success");
+        setMessage(value.trim() ? `Tracking ${value.trim()} (local demo mode)` : "Focus reset to global feed.");
+        return;
+      }
+
       await updateProfilePreferences(
         {
           profileId,

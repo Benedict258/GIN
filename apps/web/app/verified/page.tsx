@@ -1,4 +1,5 @@
 import { fetchRecentReports, fetchSectorIntel } from "../../lib/api";
+import { PendingReportsPanel } from "../../components/pending-reports-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -63,25 +64,7 @@ export default async function VerifiedPage() {
         </p>
       </section>
 
-      <section className="panel">
-        <p className="panel-label">Under Review</p>
-        <h2>Pending Signals</h2>
-        {pendingReports.length ? (
-          <ul className="assistant-thread">
-            {pendingReports.map((report) => (
-              <li key={report.id}>
-                <strong>{report.location}</strong>
-                <p className="status">{report.summary}</p>
-                <p className="status-small">
-                  {report.signalType.replace(/_/g, " ")} - Confidence {report.confidenceScore}
-                </p>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="status">No pending reports right now.</p>
-        )}
-      </section>
+      <PendingReportsPanel initialReports={pendingReports} />
 
       <section className="panel panel-wide">
         <p className="panel-label">Verified Intel</p>

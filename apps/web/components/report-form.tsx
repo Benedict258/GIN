@@ -6,6 +6,7 @@ import type { AccessStatusResponse, CreateReportInput, ContributorProfile, Credi
 import { recordSsuSubmission, submitReport } from "../lib/api";
 import { useProfile } from "../hooks/useProfile";
 import type { ProfileStatus as ProfileStatusType } from "../context/profile-context";
+import { enqueuePendingReport } from "../lib/demo-local";
 
 const defaultPayload: CreateReportInput = {
   reporterId: "",
@@ -61,6 +62,18 @@ export function ReportForm() {
     }
 
     if (isLocalFallback) {
+      const queuedId =
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `queued-${Date.now()}`;
+      enqueuePendingReport({
+        id: queuedId,
+        location: payload.location,
+        summary: payload.summary,
+        signalType: payload.signalType,
+        confidenceScore: Math.max(35, Math.round((payload.importanceScore + payload.intensity) / 2)),
+        verificationState: "emerging"
+      });
       setStatus("success");
       setMessage("Report queued for verification.");
       resetForm();

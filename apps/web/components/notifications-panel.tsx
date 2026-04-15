@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Notification } from "@gin/shared";
 import { fetchProfilePreferences, updateProfilePreferences } from "../lib/api";
 import { useProfile } from "../hooks/useProfile";
+import { getLocalFocus, isLocalProfileId, saveLocalFocus } from "../lib/demo-local";
 
 const severityCopy: Record<Notification["severity"], string> = {
   info: "Advisory",
@@ -37,6 +38,15 @@ export function NotificationsPanel({ notifications }: NotificationsPanelProps) {
     let cancelled = false;
     setPrefStatus("loading");
     setPrefMessage("Syncing preferences...");
+
+    if (isLocalProfileId(profileId)) {
+      const localFocus = getLocalFocus(profileId);
+      setSectorPreference(localFocus);
+      setAlertOptIn(true);
+      setPrefStatus("idle");
+      setPrefMessage("Local demo preferences loaded");
+      return;
+    }
 
     fetchProfilePreferences(profileId, walletAddress)
       .then((preference) => {
@@ -81,6 +91,17 @@ export function NotificationsPanel({ notifications }: NotificationsPanelProps) {
     setPrefMessage("Saving preferences...");
 
     try {
+      if (isLocalProfileId(profileId)) {
+        saveLocalFocus(profileId, sectorPreference.trim());
+        setPrefStatus("success");
+        setPrefMessage("Preferences synced locally");
+        setTimeout(() => {
+          setPrefStatus("idle");
+          setPrefMessage("");
+        }, 3200);
+        return;
+      }
+
       const preference = await updateProfilePreferences(
         {
           profileId,
